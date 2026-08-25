@@ -170,9 +170,17 @@ export function createNoticeBridge(options: NoticeBridgeOptions = {}): NoticeBri
       throw new Error('title 不能为空')
     }
 
-    const base = await discover()
+    let base = await discover()
     if (base === null) {
-      return { ok: false } // 服务不在:业务自理
+      // 可能是服务刚启动(install/拉起后的头一两秒,HTTP 尚未就绪):
+      // 短暂重探覆盖启动窗口;仍未果视为未运行,静默交还业务
+      for (let i = 0; i < 3 && base === null; i++) {
+        await sleep(500)
+        base = await discover(true)
+      }
+      if (base === null) {
+        return { ok: false }
+      }
     }
     const result = await postNotify(base, opts)
     if (result !== null) {
