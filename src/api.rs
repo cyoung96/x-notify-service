@@ -83,7 +83,12 @@ impl std::fmt::Display for NotifyError {
 impl std::error::Error for NotifyError {}
 
 impl NotifyRequest {
-    /// 语义校验
+    /// 从 JSON 请求体解析(语法错误 → BadJson)
+    pub fn from_json(body: &str) -> Result<Self, NotifyError> {
+        serde_json::from_str(body).map_err(|e| NotifyError::BadJson(e.to_string()))
+    }
+
+    /// 语义校验(空标题/超长)
     pub fn validate(&self) -> Result<(), NotifyError> {
         let title = self.title.trim();
         if title.is_empty() {

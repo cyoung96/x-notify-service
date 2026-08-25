@@ -47,42 +47,7 @@ fn send_error(req: Request, err: &api::NotifyError) {
 /// 全部被占则绑定随机端口(此时浏览器无法发现,仅系统通知可用)。
 /// 返回实际端口。
 pub fn start(cfg: Config) -> u16 {
-    let mut server = None;
-    let mut used_port = 0u16;
-    for port in cfg.port..cfg.port.saturating_add(10) {
-        match Server::http(("127.0.0.1", port)) {
-            Ok(s) => {
-                server = Some(s);
-                used_port = port;
-                break;
-            }
-            Err(_) => continue,
-        }
-    }
-    let server = match server {
-        Some(s) => s,
-        None => {
-            // 端口 0 让 OS 分配:先经 TcpListener 拿到可用端口再交给 tiny_http
-            let free = std::net::TcpListener::bind("127.0.0.1:0")
-                .and_then(|l| l.local_addr())
-                .map_err(|e| e.to_string())
-                .and_then(|a| Server::http(("127.0.0.1", a.port())).map_err(|e| e.to_string()))
-                .expect("绑定随机端口失败");
-            if let Some(addr) = free.server_addr().to_ip() {
-                used_port = addr.port();
-            }
-            log::warn!(
-                "端口 {}~{} 全部被占用,已绑定随机端口 {used_port},浏览器将无法自动发现服务",
-                cfg.port,
-                cfg.port + 9
-            );
-            free
-        }
-    };
-    if used_port != cfg.port {
-        log::warn!("默认端口 {} 被占用,实际监听 {used_port}", cfg.port);
-    }
-
+    let (server, used_port) = bind_with_fallback(cfg.port);
     let server = Arc::new(server);
     // 运行期共享状态:/health 报告实际监听端口(可能与配置端口不同)
     let state = Arc::new(Runtime { cfg, port: used_port });
@@ -103,6 +68,32 @@ pub fn start(cfg: Config) -> u16 {
             .expect("启动 HTTP 工作线程失败");
     }
     used_port
+}
+
+/// 绑定 127.0.0.1:默认端口起向后探测 10 个;全被占则让 OS 随机分配
+/// (此时浏览器无法发现服务,仅系统通知可用)。
+fn bind_with_fallback(default_port: u16) -> (Server, u16) {
+    for port in default_port..default_port.saturating_add(10) {
+        if let Ok(server) = Server::http(("127.0.0.1", port)) {
+            if port != default_port {
+                log::warn!("默认端口 {default_port} 被占用,实际监听 {port}");
+            }
+            return (server, port);
+        }
+    }
+    // 先经 TcpListener 拿到 OS 分配的空闲端口再交给 tiny_http
+    let server = std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .map_err(|e| e.to_string())
+        .and_then(|a| Server::http(("127.0.0.1", a.port())).map_err(|e| e.to_string()))
+        .expect("绑定随机端口失败");
+    let port = server.server_addr().to_ip().map(|a| a.port()).unwrap_or(0);
+    log::warn!(
+        "端口 {}~{} 全部被占用,已绑定随机端口 {port},浏览器将无法自动发现服务",
+        default_port,
+        default_port + 9
+    );
+    (server, port)
 }
 
 /// HTTP 工作线程共享的运行期状态
@@ -161,17 +152,14 @@ fn handle_notify(cfg: &Config, mut req: Request) {
         send_error(req, &api::NotifyError::BadJson("请求体过大".into()));
         return;
     }
-    let parsed: api::NotifyRequest = match serde_json::from_str(&body) {
-        Ok(p) => p,
-        Err(e) => {
-            send_error(req, &api::NotifyError::BadJson(e.to_string()));
+    // 解析+校验语义归 api 模块;这里只做传输层(读体/限长/响应)
+    let parsed = match api::NotifyRequest::from_json(&body).and_then(|r| r.validate().map(|()| r)) {
+        Ok(r) => r,
+        Err(err) => {
+            send_error(req, &err);
             return;
         }
     };
-    if let Err(err) = parsed.validate() {
-        send_error(req, &err);
-        return;
-    }
 
     let via = notify::dispatch(cfg, &parsed);
     let resp = NotifyResponse { ok: true, via };
