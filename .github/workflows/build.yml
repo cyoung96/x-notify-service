@@ -55,6 +55,17 @@ jobs:
           name: windows-setup-exe
           path: dist/*.exe
 
+  # 系统通知兜底路径端到端:假 D-Bus 会话 + mock 通知守护进程,
+  # 断言 --no-popup 时通知真实送达 org.freedesktop.Notifications(信创主路径)
+  fallback-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libfontconfig1-dev pkg-config dbus python3-dbus python3-gi
+      - run: cargo build --release
+      - run: dbus-run-session -- scripts/ci/test-fallback.sh
+
   # 构建完成后自动发布到 Releases(资源列表):
   #   推 main → 更新滚动 latest;打 v* 标签 → 固定版本发布
   release:
