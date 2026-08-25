@@ -49,8 +49,10 @@ class Notifications(dbus.service.Object):
 def main() -> None:
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SessionBus()
-    dbus.service.BusName(NOTIFY, bus)  # 占住总线名
+    # BusName 必须持有引用,否则被 GC 后总线名立即释放(python-dbus 经典坑)
+    name = dbus.service.BusName(NOTIFY, bus)
     Notifications(bus)
+    print(f"owning {name.get_name()}", flush=True)
     print("mock notification daemon ready", flush=True)
     GLib.MainLoop().run()
 
