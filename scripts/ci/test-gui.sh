@@ -27,17 +27,17 @@ fi
 # 窗口层断言(xdotool 按 WM_CLASS 查询;class 不匹配则降级为仅 via 断言)
 sleep 1
 if command -v xdotool >/dev/null 2>&1; then
-    N=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ')
+    N=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ' || true)
     if [ "$N" -ge 1 ]; then
         echo "PASS: 弹窗窗口已映射($N)"
         curl -s -X POST "$API/close" >/dev/null
         sleep 1
-        N2=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ')
+        N2=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ' || true)
         [ "$N2" = "0" ] && echo "PASS: /close 后窗口已隐藏" || { echo "FAIL: close 后窗口仍在($N2)"; exit 1; }
         # 第二条通知顶替路径
         curl -s -X POST "$API/notify" -d '{"title":"第二条","body":"顶替"}' >/dev/null
         sleep 1
-        N3=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ')
+        N3=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ' || true)
         [ "$N3" = "1" ] && echo "PASS: 新通知顶替后仍恰一个窗口" || { echo "FAIL: 顶替后窗口数 $N3"; exit 1; }
     else
         echo "SKIP: WM_CLASS 未匹配(xdotool),仅保留 via=popup 断言"
