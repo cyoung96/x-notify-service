@@ -12,6 +12,9 @@ rm -f "$OUT"
 python3 scripts/ci/mock-notify-daemon.py "$OUT" &
 MOCK_PID=$!
 sleep 1
+# 预检:mock 必须已占住总线名,否则测试无意义
+dbus-send --session --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames \
+    | grep -q org.freedesktop.Notifications || { echo "mock 未占住总线名"; exit 1; }
 
 ./target/release/x-notify-service --no-popup &
 SVC_PID=$!
