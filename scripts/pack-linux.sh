@@ -48,7 +48,8 @@ build_in_docker() { # $1=platform $2=archname
         else
             apt-get update -qq
         fi
-        apt-get install -y -qq --no-install-recommends build-essential curl ca-certificates xz-utils pkg-config libfontconfig1-dev
+        apt-get -o Acquire::Retries=8 install -y -qq --no-install-recommends \
+            build-essential curl ca-certificates xz-utils pkg-config libfontconfig1-dev
         export PATH="/cargo/bin:$PATH"
         command -v cargo >/dev/null 2>&1 || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable --no-modify-path
         cargo build --release
