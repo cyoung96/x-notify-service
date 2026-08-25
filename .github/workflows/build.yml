@@ -1,0 +1,55 @@
+# GitHub Actions:打包三平台交付物(原生构建,无交叉编译工具链)
+# 产物:Linux tgz(x86_64/aarch64)+ Windows NSIS setup.exe
+# 说明:linux-aarch64 使用 GitHub 原生 arm64 runner(公开仓库免费;
+#       私有仓库如无 arm64 配额,可改用 ubuntu-24.04 + docker/setup-qemu-action)
+
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux-x86_64:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libfontconfig1-dev pkg-config
+      - run: npm install -g pnpm@10
+      - run: ./scripts/pack-linux.sh x86_64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64-tgz
+          path: dist/*.tar.gz
+
+  linux-aarch64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libfontconfig1-dev pkg-config
+      - run: npm install -g pnpm@10
+      - run: ./scripts/pack-linux.sh aarch64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-aarch64-tgz
+          path: dist/*.tar.gz
+
+  windows:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64 nsis
+      - run: rustup target add x86_64-pc-windows-gnu
+      - run: npm install -g pnpm@10
+      - run: ./scripts/pack-windows.sh x86_64-pc-windows-gnu
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-setup-exe
+          path: dist/*.exe

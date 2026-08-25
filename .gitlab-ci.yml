@@ -1,0 +1,61 @@
+# GitLab CI:打包三平台交付物(原生构建,无交叉编译工具链)
+# 产物:Linux tgz(x86_64/aarch64)+ Windows NSIS setup.exe
+# 依赖:runner 需支持 docker(amd64;arm64 任务需 arm64 runner 或已配 binfmt)
+
+stages:
+  - build
+
+variables:
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+
+.default: &default
+  image: rust:1-slim
+  cache:
+    key: "$CI_JOB_NAME"
+    paths:
+      - .cargo/registry/
+      - target/
+  artifacts:
+    expire_in: 7 days
+
+linux-x86_64:
+  <<: *default
+  stage: build
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq libfontconfig1-dev pkg-config nodejs npm
+    - npm install -g pnpm@10 --silent
+  script:
+    - ./scripts/pack-linux.sh x86_64
+  artifacts:
+    paths:
+      - dist/*.tar.gz
+
+linux-aarch64:
+  <<: *default
+  stage: build
+  tags: [arm64] # 需要 arm64 runner;仅有 amd64 runner 时可删掉本行并配置 binfmt/qemu
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq libfontconfig1-dev pkg-config nodejs npm
+    - npm install -g pnpm@10 --silent
+  script:
+    - ./scripts/pack-linux.sh aarch64
+  artifacts:
+    paths:
+      - dist/*.tar.gz
+
+windows:
+  <<: *default
+  stage: build
+  before_script:
+    - apt-get update -qq
+    # mingw 交叉编译 + NSIS 出安装器,Debian 源全有,无需任何额外工具
+    - apt-get install -y -qq gcc-mingw-w64-x86-64 nsis nodejs npm
+    - rustup target add x86_64-pc-windows-gnu
+    - npm install -g pnpm@10 --silent
+  script:
+    - ./scripts/pack-windows.sh x86_64-pc-windows-gnu
+  artifacts:
+    paths:
+      - dist/*.exe

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- x-notify-service 统一图标:品牌蓝圆角方 + 白色通知铃铛 -->
+  <rect width="512" height="512" rx="112" fill="#4c8dff"/>
+  <path fill="#ffffff" d="M256 96c-75 0-126 56-126 128v74l-26 42c-6 11 2 24 14 24h276c12 0 20-13 14-24l-26-42v-74c0-72-51-128-126-128z"/>
+  <circle cx="256" cy="404" r="36" fill="#ffffff"/>
+</svg>
