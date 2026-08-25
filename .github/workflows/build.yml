@@ -73,12 +73,12 @@ jobs:
             TITLE="x-notify-service $TAG"
           else
             TAG="latest"
-            TITLE="x-notify-service 持续构建(latest)"
+            TITLE="最新构建"
             gh release delete latest --cleanup-tag -y -R "$GITHUB_REPOSITORY" || true
           fi
           gh release create "$TAG" \
             --title "$TITLE" \
-            --notes "CI 自动构建: ${GITHUB_SHA::8}" \
+            --notes "commit ${GITHUB_SHA::8} · $(date '+%Y-%m-%d %H:%M') CI 自动构建" \
             --target main \
             -R "$GITHUB_REPOSITORY" \
             dist/*.tar.gz dist/*.exe
