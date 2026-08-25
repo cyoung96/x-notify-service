@@ -1,0 +1,25 @@
+{
+  "name": "@hexinfo/x-notify-service-sdk",
+  "version": "0.1.0",
+  "description": "x-notify-service 业务页面接入 SDK(ESM,Chrome 87+)",
+  "type": "module",
+  "module": "./dist/x-notify-service-sdk.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/x-notify-service-sdk.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vite": "^6.3.5"
+  }
+}

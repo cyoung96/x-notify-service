@@ -1,0 +1,21 @@
+{
+  "name": "x-notify-service-js",
+  "version": "0.1.0",
+  "description": "x-notify-service JS SDK monorepo(sdk + demo)",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "demo": "pnpm -F @hexinfo/x-notify-service-demo dev"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.10",
+    "typescript": "^5.9.0"
+  }
+}
