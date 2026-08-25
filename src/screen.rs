@@ -57,9 +57,10 @@ pub fn work_area() -> Option<WorkArea> {
     use x11rb::connection::Connection;
     use x11rb::protocol::xproto::ConnectionExt;
 
-    // Wayland 会话:客户端无法查询工作区也无法自定位,返回 None 走系统通知兜底
-    if std::env::var_os("WAYLAND_DISPLAY").is_some() && std::env::var_os("DISPLAY").is_none() {
-        log::debug!("Wayland 会话,弹窗定位不可用");
+    // Wayland(含 XWayland:DISPLAY/WAYLAND_DISPLAY 并存):协议禁止客户端自定位,
+    // 弹窗会被合成器随手摆放(常为左上角),返回 None 走系统通知兜底
+    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        log::info!("Wayland/XWayland 会话,弹窗自定位不可用,通知走系统通道");
         return None;
     }
     let (conn, screen_num) = x11rb::connect(None).ok()?;
@@ -97,6 +98,9 @@ pub fn work_area() -> Option<WorkArea> {
     })();
     match wa {
         Some((x, y, w, h)) => Some(WorkArea { x, y, w, h, scale: 1.0 }),
-        None => Some(full), // 无 EWMH 提示时退回全屏
+        None => {
+            log::info!("WM 未提供 _NET_WORKAREA(精简桌面?),退回全屏尺寸定位");
+            Some(full)
+        }
     }
 }

@@ -35,7 +35,7 @@ fn main() {
     }
 }
 
-/// 服务主流程:单实例 → 绑端口 → HTTP 线程 → GUI(或降级挂起)
+/// 服务主流程:单实例 → GUI 探测(先于 HTTP,避免启动早期请求降级)→ 绑端口 → 事件循环
 fn serve(cfg: config::Config) -> ! {
     log::info!(
         "x-notify-service {} 启动(默认端口 {},日志目录 {})",
@@ -49,25 +49,28 @@ fn serve(cfg: config::Config) -> ! {
         std::process::exit(0);
     }
 
-    let port = server::start(cfg.clone());
-    single::write_port_file(port);
-    log::info!("服务已就绪: http://127.0.0.1:{port}");
-
+    // 先探测 GUI 并落定 POPUP_AVAILABLE,再开 HTTP:杜绝启动早期请求撞上降级窗口
     let gui_ok = !cfg.no_popup && notify::popup::gui_probe();
+    notify::POPUP_AVAILABLE.store(gui_ok, std::sync::atomic::Ordering::Relaxed);
     if !gui_ok {
         if cfg.no_popup {
             log::info!("--no-popup:通知全部走系统通知");
         } else {
             log::warn!("弹窗不可用,通知将走系统通知兜底");
         }
-        notify::POPUP_AVAILABLE.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    let port = server::start(cfg.clone());
+    single::write_port_file(port);
+    log::info!("服务已就绪: http://127.0.0.1:{port}");
+
+    if !gui_ok {
         // 无 GUI 模式:主线程挂起,HTTP 工作线程继续服务
         loop {
             std::thread::park();
         }
     }
 
-    notify::POPUP_AVAILABLE.store(true, std::sync::atomic::Ordering::Relaxed);
     // until_quit:弹窗 hide 不允许结束事件循环(最后一个窗口关闭默认会退出循环)
     if let Err(e) = slint::run_event_loop_until_quit() {
         log::error!("事件循环异常退出: {e}");

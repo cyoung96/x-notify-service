@@ -15,6 +15,9 @@ static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 struct Entry {
     id: u64,
     popup: PopupWindow,
+    // 显示后的位置复校定时器:部分 WM(Xfwm4 等)会把新映射窗口重摆到默认位置,
+    // 多次延迟复校可抢回;Entry 移除时定时器随之下线
+    _fixups: Vec<slint::Timer>,
 }
 
 // 仅在事件循环线程(GUI 主线程)经 invoke_from_event_loop 访问;不堆叠,同时最多一条
@@ -80,9 +83,25 @@ pub fn spawn(title: String, body_html: String) {
             let _ = old.popup.window().hide();
             log::debug!("新通知顶掉旧通知");
         }
-        // show 后再校一次位置,防止窗口管理器在显示时重排
         position(&popup, &area);
-        *current = Some(Entry { id, popup });
+        // 显示后多次复校位置,对抗 WM 重摆
+        let weak = popup.as_weak();
+        let mut fixups = Vec::with_capacity(4);
+        for delay_ms in [50u64, 120, 250, 500] {
+            let weak = weak.clone();
+            let t = slint::Timer::default();
+            t.start(
+                slint::TimerMode::SingleShot,
+                std::time::Duration::from_millis(delay_ms),
+                move || {
+                    if let Some(p) = weak.upgrade() {
+                        position(&p, &area);
+                    }
+                },
+            );
+            fixups.push(t);
+        }
+        *current = Some(Entry { id, popup, _fixups: fixups });
     });
 }
 
