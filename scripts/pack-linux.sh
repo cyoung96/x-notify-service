@@ -36,10 +36,11 @@ build_in_docker() { # $1=platform $2=archname
         "${proxy_env[@]+"${proxy_env[@]}"}" \
         -e CARGO_HOME=/cargo -e CARGO_TARGET_DIR=/work/target/linux-$2 \
         "$IMAGE" sh -exc '
-        # Debian 10 已 EOL:源改指 archive;新发行版镜像走原源
+        # Debian 10 已 EOL:源改指 archive(仅需 main;新发行版镜像走原源)
         if grep -q buster /etc/os-release 2>/dev/null; then
-            printf "deb http://archive.debian.org/debian buster main\ndeb http://archive.debian.org/debian-security buster/updates main\n" > /etc/apt/sources.list
-            apt-get -o Acquire::Check-Valid-Until=false update -qq
+            printf "deb http://archive.debian.org/debian buster main\n" > /etc/apt/sources.list
+            apt-get -o Acquire::Check-Valid-Until=false update -qq \
+                || apt-get -o Acquire::Check-Valid-Until=false update -qq
         else
             apt-get update -qq
         fi
