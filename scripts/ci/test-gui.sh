@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Xvfb 无头 GUI 冒烟:真实创建/显示/关闭弹窗(Slint+winit+软件渲染+fontconfig 全栈)。
+# 无 WM 环境:_NET_WORKAREA 缺失走全屏兜底定位;断言弹窗路径端到端可用。
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+BIN=./target/release/x-notify-service
+API=http://127.0.0.1:17320
+DISPLAY_ID=:99
+
+Xvfb "$DISPLAY_ID" -screen 0 1280x800x24 &
+XVFB_PID=$!
+trap 'kill $XVFB_PID 2>/dev/null; pkill -f x-notify-service 2>/dev/null || true' EXIT
+sleep 1
+
+DISPLAY="$DISPLAY_ID" "$BIN" >/tmp/xns-gui.log 2>&1 &
+for _ in $(seq 1 50); do curl -sf "$API/health" >/dev/null 2>&1 && break; sleep 0.2; done
+
+VIA=$(curl -s -X POST "$API/notify" -d '{"title":"GUI 冒烟","body":"Xvfb 真实渲染弹窗"}' | jq -r .via)
+[ "$VIA" = "popup" ] || { echo "FAIL: 应 via=popup 实际 $VIA"; cat /tmp/xns-gui.log; exit 1; }
+echo "PASS: via=popup(GUI 栈端到端可用)"
+
+if grep -q "弹窗显示失败" /tmp/xns-gui.log 2>/dev/null; then
+    echo "FAIL: 服务日志存在弹窗失败记录"; exit 1
+fi
+
+# 窗口层断言(xdotool 按 WM_CLASS 查询;class 不匹配则降级为仅 via 断言)
+sleep 1
+if command -v xdotool >/dev/null 2>&1; then
+    N=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$N" -ge 1 ]; then
+        echo "PASS: 弹窗窗口已映射($N)"
+        curl -s -X POST "$API/close" >/dev/null
+        sleep 1
+        N2=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ')
+        [ "$N2" = "0" ] && echo "PASS: /close 后窗口已隐藏" || { echo "FAIL: close 后窗口仍在($N2)"; exit 1; }
+        # 第二条通知顶替路径
+        curl -s -X POST "$API/notify" -d '{"title":"第二条","body":"顶替"}' >/dev/null
+        sleep 1
+        N3=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ')
+        [ "$N3" = "1" ] && echo "PASS: 新通知顶替后仍恰一个窗口" || { echo "FAIL: 顶替后窗口数 $N3"; exit 1; }
+    else
+        echo "SKIP: WM_CLASS 未匹配(xdotool),仅保留 via=popup 断言"
+    fi
+fi
+
+echo "== GUI 冒烟通过 =="
