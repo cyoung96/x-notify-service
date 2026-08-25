@@ -54,6 +54,9 @@ pub fn work_area() -> Option<WorkArea> {
 
 #[cfg(target_os = "linux")]
 pub fn work_area() -> Option<WorkArea> {
+    use x11rb::connection::Connection;
+    use x11rb::protocol::xproto::ConnectionExt;
+
     // Wayland 会话:客户端无法查询工作区也无法自定位,返回 None 走系统通知兜底
     if std::env::var_os("WAYLAND_DISPLAY").is_some() && std::env::var_os("DISPLAY").is_none() {
         log::debug!("Wayland 会话,弹窗定位不可用");
