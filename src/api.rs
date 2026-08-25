@@ -104,3 +104,33 @@ impl NotifyRequest {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_json_bad() {
+        assert!(matches!(NotifyRequest::from_json("{bad"), Err(NotifyError::BadJson(_))));
+    }
+
+    #[test]
+    fn validate_branches() {
+        let mk = |title: &str| NotifyRequest { title: title.into(), body: None };
+        assert!(matches!(mk(" ").validate(), Err(NotifyError::EmptyTitle)));
+        assert!(matches!(mk(&"x".repeat(TITLE_MAX + 1)).validate(), Err(NotifyError::TitleTooLong)));
+        let long = NotifyRequest {
+            title: "t".into(),
+            body: Some("b".repeat(BODY_MAX + 1)),
+        };
+        assert!(matches!(long.validate(), Err(NotifyError::BodyTooLong)));
+        assert!(mk("正常").validate().is_ok());
+    }
+
+    #[test]
+    fn error_status_mapping() {
+        assert_eq!(NotifyError::BadJson("x".into()).status(), 400);
+        assert_eq!(NotifyError::EmptyTitle.status(), 422);
+        assert_eq!(NotifyError::TitleTooLong.status(), 422);
+    }
+}

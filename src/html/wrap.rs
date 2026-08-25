@@ -128,3 +128,49 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod more_tests {
+    use super::super::{parse, to_plain_text, to_styled_lines};
+
+    /// 基础子集:加粗/颜色/字号/br/实体/未知标签剥除
+    #[test]
+    fn subset_parse_and_markup() {
+        let p = parse("<b>紧急</b> 普通 <font color=\"#d93025\">红</font><br>第二行 <i>斜体剥除</i> &amp; 实体");
+        let lines = to_styled_lines(&p);
+        assert_eq!(lines.len(), 2, "br 应产生两行");
+        assert!(lines[0].0.contains("**紧急**"), "加粗标记: {}", lines[0].0);
+        assert!(lines[0].0.contains("<font color=\"#d93025\">红</font>"), "颜色标记: {}", lines[0].0);
+        assert!(!lines[0].0.contains("<i>"), "未知标签应剥除");
+        assert!(!lines[1].0.contains("斜体剥除</i>"));
+        assert!(lines[1].0.contains("斜体剥除"), "剥除后内文保留");
+        assert!(lines[1].0.contains("& 实体"), "实体应解码: {}", lines[1].0);
+        assert!(lines[0].1.is_none(), "无显式字号时为 None");
+    }
+
+    /// 字号按行生效;超范围字号忽略
+    #[test]
+    fn font_size_per_line_and_clamp() {
+        let p = parse("<font size=\"17\">大字行</font><br><font size=\"99\">非法字号回落</font>");
+        let lines = to_styled_lines(&p);
+        assert_eq!(lines[0].1, Some(17));
+        assert_eq!(lines[1].1, None, "超范围字号应忽略");
+    }
+
+    /// 超过 MAX_LINES 截断加省略号
+    #[test]
+    fn truncate_with_ellipsis() {
+        let text = std::array::from_fn::<_, 8, _>(|_| "很长的一行内容呀".repeat(3)).join("<br>");
+        let p = parse(&text);
+        let lines = to_styled_lines(&p);
+        assert_eq!(lines.len(), super::MAX_LINES);
+        assert!(lines.last().unwrap().0.ends_with('…'));
+    }
+
+    /// 纯文本提取:标签全剥、行按 \n 连接
+    #[test]
+    fn plain_text_extraction() {
+        let t = to_plain_text("<b>A</b><font color=\"red\">B</font><br>C &lt;D&gt;");
+        assert_eq!(t, "AB\nC <D>");
+    }
+}
