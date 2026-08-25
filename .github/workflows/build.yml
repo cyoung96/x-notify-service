@@ -8,6 +8,7 @@ name: build
 on:
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 env:
@@ -53,3 +54,33 @@ jobs:
         with:
           name: windows-setup-exe
           path: dist/*.exe
+
+  # 构建完成后自动发布到 Releases(资源列表):
+  #   推 main → 更新滚动 latest;打 v* 标签 → 固定版本发布
+  release:
+    needs: [linux-x86_64, linux-aarch64, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            TITLE="x-notify-service $TAG"
+          else
+            TAG="latest"
+            TITLE="x-notify-service 持续构建(latest)"
+            gh release delete latest --cleanup-tag -y -R "$GITHUB_REPOSITORY" || true
+          fi
+          gh release create "$TAG" \
+            --title "$TITLE" \
+            --notes "CI 自动构建: ${GITHUB_SHA::8}" \
+            --target main \
+            -R "$GITHUB_REPOSITORY" \
+            dist/*.tar.gz dist/*.exe
+        env:
+          GH_TOKEN: ${{ github.token }}
