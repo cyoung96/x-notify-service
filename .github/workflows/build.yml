@@ -1,6 +1,8 @@
-# GitHub Actions:打包三平台交付物(原生构建,无交叉编译工具链)
+# GitHub Actions:打包三平台交付物
 # 产物:Linux tgz(x86_64/aarch64)+ Windows NSIS setup.exe
-# 说明:linux-aarch64 使用 GitHub 原生 arm64 runner(公开仓库免费;
+# 说明:Linux 在 Debian 10 容器内编译(glibc 2.28 地板,兼容 UOS 20/麒麟 V10
+#       等老 glibc 系统,产出可跑在 ≥2.28 的所有发行版);脚本自带 GLIBC 断言。
+#       linux-aarch64 使用 GitHub 原生 arm64 runner(公开仓库免费;
 #       私有仓库如无 arm64 配额,可改用 ubuntu-24.04 + docker/setup-qemu-action)
 
 name: build
@@ -19,8 +21,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libfontconfig1-dev pkg-config
+      - uses: actions/cache@v4
+        with:
+          path: .ci-cache
+          key: linux-x86_64-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: linux-x86_64-cargo-
       - run: npm install -g pnpm@10
       - run: ./scripts/pack-linux.sh x86_64
       - uses: actions/upload-artifact@v4
@@ -32,8 +37,11 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libfontconfig1-dev pkg-config
+      - uses: actions/cache@v4
+        with:
+          path: .ci-cache
+          key: linux-aarch64-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: linux-aarch64-cargo-
       - run: npm install -g pnpm@10
       - run: ./scripts/pack-linux.sh aarch64
       - uses: actions/upload-artifact@v4

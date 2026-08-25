@@ -4,6 +4,9 @@
 # 打包产物
 /dist
 
+# 容器构建缓存(cargo home/工具链)
+.ci-cache/
+
 # JS(sdk/js 独立 pnpm workspace)
 sdk/js/node_modules
 sdk/js/**/dist
