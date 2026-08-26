@@ -9,6 +9,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# 同一分支的新推送自动取消仍在跑的旧运行(过期提交不占 runner)
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
