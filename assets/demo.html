@@ -52,7 +52,9 @@
       svc.start().then((ok) => setStatus(ok ? '在线' : '未安装/未运行'))
 
       document.getElementById('btn-send').onclick = async () => {
-        const r = await svc.notify({ title: inpTitle.value, body: inpBody.value })
+        const title = document.getElementById('inp-title').value
+        const body = document.getElementById('inp-body').value
+        const r = await svc.notify({ title, body })
         log(r.ok ? `发送成功: via=${r.via}` : '未送达(服务未运行,静默失败)')
       }
       document.getElementById('btn-launch').onclick = async () => {
