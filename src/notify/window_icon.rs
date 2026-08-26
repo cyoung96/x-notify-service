@@ -104,7 +104,9 @@ mod imp {
         else {
             return;
         };
-        let Ok(len) = u32::try_from(blob.len()) else {
+        // data_length 在 format=32 时是 32 位元素个数(非字节数),
+        // 传错会触发 x11rb 客户端断言 panic(UOS 真机闪退根因)
+        let Ok(units) = u32::try_from(blob.len() / 4) else {
             return;
         };
         let _ = conn.change_property(
@@ -113,7 +115,7 @@ mod imp {
             atom,
             x11rb::protocol::xproto::AtomEnum::CARDINAL,
             32,
-            len,
+            units,
             blob,
         );
         let _ = conn.flush();
