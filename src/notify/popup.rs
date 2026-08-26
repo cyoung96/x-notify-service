@@ -193,10 +193,32 @@ fn set_window_icons() {
         return;
     };
     let root = conn.setup().roots[screen_num].root;
-    let Some(tree) = conn.query_tree(root).ok().and_then(|c| c.reply().ok()) else {
-        return;
-    };
-    for wid in tree.children {
+    // 客户端窗口清单走 EWMH _NET_CLIENT_LIST:WM 会把窗口重挂进自己的框架,
+    // root 直接子窗口是框架而非本窗,遍历树必落空
+    let list_atom = conn
+        .intern_atom(false, b"_NET_CLIENT_LIST")
+        .ok()
+        .and_then(|c| c.reply().ok())
+        .map(|a| a.atom);
+    let Some(list_atom) = list_atom else { return };
+    let clients = conn
+        .get_property(
+            false,
+            root,
+            list_atom,
+            x11rb::protocol::xproto::AtomEnum::WINDOW,
+            0,
+            1024,
+        )
+        .ok()
+        .and_then(|c| c.reply().ok());
+    let Some(clients) = clients else { return };
+    let ids: Vec<u32> = clients
+        .value
+        .chunks_exact(4)
+        .map(|b| u32::from(b[0]) | (u32::from(b[1]) << 8) | (u32::from(b[2]) << 16) | (u32::from(b[3]) << 24))
+        .collect();
+    for wid in ids {
         if window_matches(&conn, wid) {
             let atom = conn
                 .intern_atom(false, b"_NET_WM_ICON")
