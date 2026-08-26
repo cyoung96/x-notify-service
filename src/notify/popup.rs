@@ -213,11 +213,9 @@ fn set_window_icons() {
         .ok()
         .and_then(|c| c.reply().ok());
     let Some(clients) = clients else { return };
-    let ids: Vec<u32> = clients
-        .value
-        .chunks_exact(4)
-        .map(|b| u32::from(b[0]) | (u32::from(b[1]) << 8) | (u32::from(b[2]) << 16) | (u32::from(b[3]) << 24))
-        .collect();
+    // X11 线序为小端
+    let (words, _) = clients.value.as_chunks::<4>();
+    let ids: Vec<u32> = words.iter().map(|c| u32::from_le_bytes(*c)).collect();
     for wid in ids {
         if window_matches(&conn, wid) {
             let atom = conn
