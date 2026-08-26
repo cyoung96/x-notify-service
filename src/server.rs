@@ -69,6 +69,17 @@ fn request_origin(req: &Request) -> Option<String> {
         .map(|h| h.value.as_str().to_string())
 }
 
+/// 内嵌静态内容(演示页与 SDK,公开只读,无鉴权)
+fn serve_static(req: Request, cors: Vec<Header>, content_type: &str, body: &str) {
+    let mut response = Response::from_string(body)
+        .with_status_code(200)
+        .with_header(header("Content-Type", content_type));
+    for h in cors {
+        response = response.with_header(h);
+    }
+    let _ = req.respond(response);
+}
+
 fn send_json(req: Request, cors: Vec<Header>, status: u16, body: String) {
     let mut response = Response::from_string(body)
         .with_status_code(status)
@@ -172,26 +183,14 @@ fn handle(rt: &Runtime, req: Request) {
     }
 
     match (method, path.as_str()) {
-        (Method::Get, "/") => {
-            let mut response = Response::from_string(DEMO_HTML)
-                .with_status_code(200)
-                .with_header(header("Content-Type", "text/html; charset=utf-8"));
-            for h in cors {
-                response = response.with_header(h);
-            }
-            let _ = req.respond(response);
-        }
-        (Method::Get, "/sdk.js") => {
+        (Method::Get, "/") => serve_static(req, cors, "text/html; charset=utf-8", DEMO_HTML),
+        (Method::Get, "/sdk.js") => serve_static(
+            req,
+            cors,
+            "text/javascript; charset=utf-8",
             // SDK 产物由 build.rs 复制到 OUT_DIR(纯 cargo build 时为占位)
-            let body = include_str!(concat!(env!("OUT_DIR"), "/embedded-sdk.js"));
-            let mut response = Response::from_string(body)
-                .with_status_code(200)
-                .with_header(header("Content-Type", "text/javascript; charset=utf-8"));
-            for h in cors {
-                response = response.with_header(h);
-            }
-            let _ = req.respond(response);
-        }
+            include_str!(concat!(env!("OUT_DIR"), "/embedded-sdk.js")),
+        ),
         (Method::Get, "/health") => {
             // /health 保持开放:仅身份与端口,供 SDK 探测;无敏感动作
             let body = HealthResponse {
