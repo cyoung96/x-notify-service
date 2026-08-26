@@ -94,8 +94,8 @@ mod imp {
         }
     }
 
-    /// 写入多档图标属性
-    fn write_icons(conn: &x11rb::rust_connection::RustConnection, wid: u32, data: &[u32]) {
+    /// 写入图标负载:blob 已是构建期产出的线序字节,直接落属性
+    fn write_blob(conn: &x11rb::rust_connection::RustConnection, wid: u32, blob: &[u8]) {
         let Some(atom) = conn
             .intern_atom(false, b"_NET_WM_ICON")
             .ok()
@@ -104,8 +104,7 @@ mod imp {
         else {
             return;
         };
-        let bytes: Vec<u8> = data.iter().copied().flat_map(u32::to_ne_bytes).collect();
-        let Ok(len) = u32::try_from(bytes.len()) else {
+        let Ok(len) = u32::try_from(blob.len()) else {
             return;
         };
         let _ = conn.change_property(
@@ -115,7 +114,7 @@ mod imp {
             x11rb::protocol::xproto::AtomEnum::CARDINAL,
             32,
             len,
-            &bytes,
+            blob,
         );
         let _ = conn.flush();
         log::debug!("已写入多档窗口图标");
