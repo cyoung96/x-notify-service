@@ -75,7 +75,14 @@ jobs:
           path: dist
       - run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          gh release create "$TAG" \
+          # 已发布(tag 不可变):拒绝覆盖;草稿(上次中断):续传;不存在:新建草稿
+          STATE=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null || echo none)
+          if [ "$STATE" = "false" ]; then
+            echo "::error::Release $TAG 已发布,拒绝覆盖——标签不可变,变更请升版本号打新 tag"
+            exit 1
+          fi
+          if [ "$STATE" = "none" ]; then
+            gh release create "$TAG" --draft \
             --title "x-notify-service $TAG" \
             --notes "正式发布 $TAG · commit ${GITHUB_SHA::8} · $(date -u '+%Y-%m-%d %H:%M UTC')
 
@@ -91,6 +98,10 @@ jobs:
           \`\`\`
           安装与接入见包内 sdk-使用手册.md。" \
             -R "$GITHUB_REPOSITORY" \
-            dist/*.tar.xz dist/*.exe
+              dist/*.tar.xz dist/*.exe
+          else
+            gh release upload "$TAG" dist/*.tar.xz dist/*.exe --clobber
+          fi
+          gh release edit "$TAG" --draft=false
         env:
           GH_TOKEN: ${{ github.token }}
