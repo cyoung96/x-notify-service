@@ -52,7 +52,10 @@ build_in_docker() { # $1=platform $2=archname
         apt-get -o Acquire::Retries=8 install -y -qq --no-install-recommends \
             build-essential curl ca-certificates xz-utils pkg-config libfontconfig1-dev
         export PATH="/cargo/bin:$PATH"
-        command -v cargo >/dev/null 2>&1 || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable --no-modify-path
+        # 缓存恢复的 .ci-cache/cargo 可能是空目录(首次无缓存):rustup 存在但
+        # default toolchain 缺失会报"no default is configured",重装兜底
+        command -v cargo >/dev/null 2>&1 && cargo --version >/dev/null 2>&1 \
+            || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable --no-modify-path
         cargo build --release
         # 容器内 root 写的文件会让 host 上 tar(actions/cache)Permission denied,
         # 退出前改属主为 host 侧 runner 用户(UID 经 env 传入)
