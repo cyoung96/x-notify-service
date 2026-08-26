@@ -71,7 +71,7 @@ fn http(
             Ok(_) => {}
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => return None,
             Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => return None,
-            Err(e) => panic!("HTTP 读取失败: {e}"),
+            Err(_) => return None,
         }
         let (head, body) = buf.split_once("\r\n\r\n").unwrap_or(("", ""));
         let status: u16 = head

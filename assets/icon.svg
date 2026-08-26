@@ -1,6 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- x-notify-service 统一图标:品牌蓝圆角方 + 白色通知铃铛 -->
-  <rect width="512" height="512" rx="112" fill="#4c8dff"/>
-  <path fill="#ffffff" d="M256 96c-75 0-126 56-126 128v74l-26 42c-6 11 2 24 14 24h276c12 0 20-13 14-24l-26-42v-74c0-72-51-128-126-128z"/>
-  <circle cx="256" cy="404" r="36" fill="#ffffff"/>
+  <!-- x-notify-service 统一图标:品牌蓝渐变圆角方 + 白色通知铃铛 -->
+  <!-- 由本源再生全部位图:scripts/gen-icons.sh -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5e96ff"/>
+      <stop offset="1" stop-color="#3d7ef8"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- 铃身:穹顶连续过渡到喇叭裙摆,避免直线斜切的生硬感 -->
+  <path fill="#ffffff" d="M256 92C194 92 142 138 142 210v72s-14 26-30 48c-10 14-2 30 16 30h256c18 0 26-16 16-30-16-22-30-48-30-48v-72c0-72-52-118-114-118z"/>
+  <circle cx="256" cy="398" r="32" fill="#ffffff"/>
 </svg>
