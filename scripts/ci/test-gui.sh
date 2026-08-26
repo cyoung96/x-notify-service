@@ -47,7 +47,12 @@ if command -v xdotool >/dev/null 2>&1; then
         # 定位断言:无面板时工作区=全屏,期望右下角 (1280-367-14, 800-206-14)=(899,580)
         if pgrep -x xfwm4 >/dev/null 2>&1; then
             WIN=$(xdotool search --name x-notify-service | head -1)
-            read -r WX WY < <(xdotool getwindowgeometry --shell "$WIN" | awk '/^X=/{x=$2} /^Y=/{y=$2} END{print x, y}')
+            GEO=$(xdotool getwindowgeometry --shell "$WIN" 2>&1)
+            WX=$(printf '%s\n' "$GEO" | sed -n 's/^X=//p')
+            WY=$(printf '%s\n' "$GEO" | sed -n 's/^Y=//p')
+            if [ -z "$WX" ] || [ -z "$WY" ]; then
+                echo "FAIL: 无法读取窗口几何"; printf '%s\n' "$GEO"; exit 1
+            fi
             DX=$((WX - 899)); if [ $DX -lt 0 ]; then DX=$((-DX)); fi
             DY=$((WY - 580)); if [ $DY -lt 0 ]; then DY=$((-DY)); fi
             echo "弹窗实际位置: ($WX,$WY),期望: (899,580),偏差: (${DX},${DY})"
