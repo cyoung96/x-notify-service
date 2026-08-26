@@ -58,6 +58,10 @@ if command -v xdotool >/dev/null 2>&1; then
             DX=$((WX - 899)); if [ $DX -lt 0 ]; then DX=$((-DX)); fi
             DY=$((WY - 580)); if [ $DY -lt 0 ]; then DY=$((-DY)); fi
             echo "弹窗实际位置: ($WX,$WY),期望: (899,580),偏差: (${DX},${DY})"
+            # 置顶态断言:EWMH _NET_WM_STATE_ABOVE(WM 应答 hint)
+            xprop -id "$WIN" _NET_WM_STATE 2>/dev/null | grep -q "_NET_WM_STATE_ABOVE" \
+                && echo "PASS: 弹窗置顶(_NET_WM_STATE_ABOVE)" \
+                || { echo "FAIL: 弹窗缺置顶态"; exit 1; }
             if [ "$DX" -le 6 ] && [ "$DY" -le 6 ]; then
                 echo "PASS: 弹窗落在工作区右下角(WM 重摆复校生效)"
             else
