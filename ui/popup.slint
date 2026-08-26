@@ -7,6 +7,8 @@ export struct BodyLine {
 }
 
 export component PopupWindow inherits Window {
+    // title 仅作 WM/任务栏/测试识别用,无框窗口不显示标题
+    title: "x-notify-service";
     no-frame: true;
     always-on-top: true;
     background: #ffffff;
