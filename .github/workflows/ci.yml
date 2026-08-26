@@ -52,8 +52,8 @@ jobs:
           node-version: 24
       - run: npm install -g pnpm@10
       - run: cd sdk/js && pnpm install --silent && pnpm -F @hexinfo/x-notify-service-sdk build
-      - run: cargo build --release
-      - run: scripts/ci/test-api.sh
+      # HTTP API 集成测试已入 cargo test(tests_http.rs,本地可跑);
+      # 此处仅留需真实 D-Bus 环境的兜底端到端
       - run: dbus-run-session -- scripts/ci/test-fallback.sh
       - run: cd sdk/js && pnpm -F @hexinfo/x-notify-service-sdk test
 
