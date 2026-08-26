@@ -8,6 +8,8 @@ export interface NotifyServiceOptions {
   readonly portRange?: number
   /** notify 单次请求超时(毫秒),默认 3000 */
   readonly requestTimeoutMs?: number
+  /** 与服务端 config.toml 的 token 一致时携带 X-Token;不配置则不鉴权(默认) */
+  readonly token?: string
 }
 
 export interface NotifyOptions {

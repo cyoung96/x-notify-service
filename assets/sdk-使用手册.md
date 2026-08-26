@@ -59,6 +59,7 @@ const result = await svc.notify({
 | basePort | number | 17320 | 端口探测起始值，须与服务端配置一致 |
 | portRange | number | 10 | 探测端口个数，须与服务端配置一致 |
 | requestTimeoutMs | number | 3000 | notify 单次请求超时（毫秒） |
+| token | string | — | 与服务端 config.toml 的 token 一致时自动携带 X-Token；不配置则按无鉴权调用 |
 
 返回实例方法：
 
@@ -107,6 +108,9 @@ x-notify-service uninstall            # 停止服务并清理全部注册
 
 **Q：notify 返回 `{ ok: false }`？**
 本机未安装或服务未运行。页面初始化先 `await svc.start()`；仍 false 则引导安装。
+
+**Q：服务端配置了 token 怎么办？**
+`createNotifyService({ token: '与服务端一致' })` 即可，SDK 会自动在 notify/close 请求头带上 X-Token。
 
 **Q：`via` 是什么？**
 `popup` = 右下角弹窗（主渠道）；`system` = 系统通知（兜底：无桌面会话/Wayland/弹窗初始化失败）。

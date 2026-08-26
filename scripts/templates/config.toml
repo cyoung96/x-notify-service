@@ -19,3 +19,17 @@
 
 # Windows 兜底系统通知的 AppId(默认 PowerShell,可选)
 # app_id = ""
+
+# ── 安全参数(全部可选;不配置 = 默认最简:全开放、无鉴权) ──
+
+# CORS 允许的页面来源(精确匹配)。默认 ["*"] 全开放;
+# 收紧为白名单后,列表外页面的跨域请求会被浏览器拦截:
+# cors_origins = ["http://oa.example.com", "http://172.16.0.5:8080"]
+
+# 是否应答 Access-Control-Private-Network(新版 Chrome 本地网络预检用)
+# allow_private_network = true
+
+# 访问令牌:设置后 /notify 与 /close 需携带 HTTP 头 X-Token 与之匹配,
+# SDK 侧 createNotifyService({ token: "..." }) 同步配置。
+# 留空或不配置 = 无鉴权(默认):
+# token = ""

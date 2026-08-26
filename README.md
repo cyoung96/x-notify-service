@@ -30,6 +30,10 @@ x-notify-service close        # 关闭当前弹窗(幂等)
 - 全部注册均为**用户级**(Windows HKCU / Linux XDG autostart),无需管理员/root。
 - 单实例:重复启动静默退出;端口默认 `17320`,被占自动向后探测 10 个。
 - 日志:按天滚动保留 7 天;Linux `~/.local/state/x-notify-service/logs`、Windows `%LOCALAPPDATA%\x-notify-service\logs`。
+- 安全参数(全部可选,不配置 = 默认最简:全开放、无鉴权):
+  `cors_origins = ["http://oa.example.com"]` 收紧跨域白名单(默认 `["*"]`);
+  `token = "xxx"` 启用访问令牌,/notify 与 /close 需带 `X-Token` 头,SDK 侧 `createNotifyService({ token })` 同步配置;
+  `allow_private_network = false` 可关闭本地网络预检应答。`info` 子命令可查看当前生效值。
 - 配置文件查找顺序:`--config` > 二进制同目录 `config.toml`(绿色版友好)> 用户配置目录(模板见 `scripts/templates/config.toml`)。
 
 ### HTTP API(127.0.0.1,无鉴权,CORS 全开)

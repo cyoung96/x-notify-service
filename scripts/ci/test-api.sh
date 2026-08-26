@@ -93,4 +93,25 @@ ALIVE=$(curl -s -o /dev/null -w '%{http_code}' "$API/health" || true)
 assert "stop 后 health 不通" "$ALIVE" "000"
 "$BIN" start >/dev/null 2>&1 || true   # 收尾:留给后续场景的服务态
 
+# ---------- 场景5:安全参数(token 鉴权 + CORS 白名单;默认不配置=全开放无鉴权)----------
+cat > /tmp/xns-sec.toml <<'SEC'
+port = 17444
+token = "s3cret"
+cors_origins = ["http://good.example"]
+SEC
+"$BIN" --config /tmp/xns-sec.toml --no-popup serve >/dev/null 2>&1 &
+SEC_SVC=$!
+for _ in $(seq 1 30); do curl -sf http://127.0.0.1:17444/health >/dev/null 2>&1 && break; sleep 0.2; done
+CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:17444/notify -d '{"title":"t"}')
+assert "无 token 被拒 401" "$CODE" "401"
+CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:17444/notify -H "X-Token: s3cret" -d '{"title":"t"}')
+assert "带 token 放行 200" "$CODE" "200"
+ORIGIN=$(curl -s -i -X OPTIONS http://127.0.0.1:17444/notify -H "Origin: http://good.example" \
+    -H "Access-Control-Request-Method: POST" | grep -i '^access-control-allow-origin' | awk '{print $2}' | tr -d '\r')
+assert "白名单 Origin 回显" "$ORIGIN" "http://good.example"
+N=$(curl -s -i -X OPTIONS http://127.0.0.1:17444/notify -H "Origin: http://evil.example" \
+    -H "Access-Control-Request-Method: POST" | grep -ci '^access-control-allow-origin' || true)
+assert "陌生 Origin 无 Allow-Origin" "$N" "0"
+kill $SEC_SVC 2>/dev/null || true
+
 echo "== 集成测试全部通过 =="

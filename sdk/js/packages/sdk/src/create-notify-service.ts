@@ -44,6 +44,7 @@ export function createNotifyService(options: NotifyServiceOptions = {}): NotifyS
   const basePort = options.basePort ?? DEFAULT_BASE_PORT
   const portRange = options.portRange ?? DEFAULT_PORT_RANGE
   const requestTimeoutMs = options.requestTimeoutMs ?? 3000
+  const authHeaders = options.token === undefined ? {} : { 'X-Token': options.token }
 
   let cachedBaseUrl: string | null = null
   let discovering: Promise<string | null> | null = null
@@ -157,6 +158,7 @@ export function createNotifyService(options: NotifyServiceOptions = {}): NotifyS
       fetch(`${baseUrl}/notify`, {
         method: 'POST',
         body: JSON.stringify(body),
+        headers: authHeaders,
         signal: controller.signal,
       })
         .then((res) => {
@@ -218,7 +220,7 @@ export function createNotifyService(options: NotifyServiceOptions = {}): NotifyS
     if (base === null) {
       return
     }
-    await fetch(`${base}/close`, { method: 'POST' }).catch(() => undefined)
+    await fetch(`${base}/close`, { method: 'POST', headers: authHeaders }).catch(() => undefined)
   }
 
   /** 清空已缓存的 baseUrl(下次调用重新探测) */
