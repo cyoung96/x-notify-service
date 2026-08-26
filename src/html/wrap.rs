@@ -31,7 +31,6 @@ pub(super) fn wrap_lines(lines: LogicalLines) -> WrappedLines {
             let mut seg = String::new();
             for ch in run.text.chars() {
                 if units + char_units(ch) > max_units {
-                    // 行首禁则:循环把 seg 末尾字符带下去,直到行首字符合法
                     let (head, rest) = split_with_kinsoku(seg, ch);
                     seg = rest;
                     if !seg.is_empty() {

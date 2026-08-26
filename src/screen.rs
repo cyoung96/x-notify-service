@@ -85,7 +85,6 @@ pub fn work_area() -> Option<WorkArea> {
         h: f64::from(screen.height_in_pixels),
         scale: 1.0,
     };
-    // 尝试读 _NET_WORKAREA(第一个桌面的 x/y/w/h)
     let wa = (|| -> Option<(f64, f64, f64, f64)> {
         let atom = conn
             .intern_atom(false, b"_NET_WORKAREA")
