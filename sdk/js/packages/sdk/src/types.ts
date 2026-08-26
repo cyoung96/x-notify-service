@@ -10,8 +10,6 @@ export interface NotifyServiceOptions {
   readonly requestTimeoutMs?: number
   /** 与服务端 config.toml 的 token 一致时携带 X-Token;不配置则不鉴权(默认) */
   readonly token?: string
-  /** 已知服务地址(如服务内嵌演示页传 location.origin)时跳过端口探测 */
-  readonly baseUrl?: string
 }
 
 export interface NotifyOptions {

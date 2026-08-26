@@ -45,7 +45,6 @@ export function createNotifyService(options: NotifyServiceOptions = {}): NotifyS
   const portRange = options.portRange ?? DEFAULT_PORT_RANGE
   const requestTimeoutMs = options.requestTimeoutMs ?? 3000
   const authHeaders = options.token === undefined ? {} : { 'X-Token': options.token }
-  const knownBase = options.baseUrl?.replace(/\/$/, '') ?? null
 
   let cachedBaseUrl: string | null = null
   let discovering: Promise<string | null> | null = null
@@ -75,35 +74,25 @@ export function createNotifyService(options: NotifyServiceOptions = {}): NotifyS
     })
   }
 
-  /** 已知地址直连校验;否则并发探测端口区间,取端口号最小的命中项 */
+  /** 顺序探测端口区间,命中即停:默认端口在线时零失败请求(控制台无报错) */
   async function discover(force = false): Promise<string | null> {
     if (!force && cachedBaseUrl) {
-      return cachedBaseUrl
-    }
-    if (knownBase !== null) {
-      cachedBaseUrl = (await fetchHealth(knownBase, 300)) !== null ? knownBase : null
       return cachedBaseUrl
     }
     if (discovering) {
       return discovering
     }
     discovering = (async () => {
-      const probes: Array<{ port: number; promise: Promise<unknown> }> = []
       for (let i = 0; i < portRange; i++) {
         const port = basePort + i
-        // 300ms:本地回环上端口无人监听会立刻 refused,不会真的等满
-        probes.push({ port, promise: fetchHealth(`http://127.0.0.1:${port}`, 300) })
-      }
-      const hits: number[] = []
-      for (const probe of probes) {
-        const body = await probe.promise
-        if (body !== null) {
-          hits.push(probe.port)
+        // 300ms 超时仅对"有监听但慢响应"有效;回环上无人监听是立刻 refused
+        if ((await fetchHealth(`http://127.0.0.1:${port}`, 300)) !== null) {
+          cachedBaseUrl = `http://127.0.0.1:${port}`
+          return cachedBaseUrl
         }
       }
-      hits.sort((a, b) => a - b)
-      cachedBaseUrl = hits.length > 0 ? `http://127.0.0.1:${hits[0]}` : null
-      return cachedBaseUrl
+      cachedBaseUrl = null
+      return null
     })()
     const result = await discovering
     discovering = null

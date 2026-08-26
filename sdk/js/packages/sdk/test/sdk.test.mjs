@@ -78,16 +78,6 @@ test('真服务:discover 命中并缓存,notify 送达 snake_case 字段,close �
   assert.equal(calls.close, 2, 'close 每次都请求(幂等由服务端保证)')
 })
 
-test('baseUrl 指定地址时跳过端口探测(区间外端口可发现)', async () => {
-  const { server, calls, port } = await mockServer({ port: 24595 })
-  servers.push(server)
-  const svc = createNotifyService({ baseUrl: `http://127.0.0.1:${port}` })
-  assert.equal(await svc.discover(), `http://127.0.0.1:${port}`)
-  const r = await svc.notify({ title: 't' })
-  assert.equal(r.ok, true)
-  assert.equal(calls.notify.length, 1)
-})
-
 test('空标题:抛出参数错误(编程错误应显式暴露)', async () => {
   const bridge = createNotifyService({ basePort: 24590, portRange: 3 })
   await assert.rejects(() => bridge.notify({ title: ' ' }), /title/)
