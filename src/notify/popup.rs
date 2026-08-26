@@ -206,12 +206,14 @@ fn set_window_icons() {
                 .map(|a| a.atom);
             let Some(atom) = atom else { return };
             let bytes: Vec<u8> = data.iter().copied().flat_map(u32::to_ne_bytes).collect();
+            let Ok(len) = u32::try_from(bytes.len()) else { return };
             let _ = conn.change_property(
                 x11rb::protocol::xproto::PropMode::REPLACE,
                 wid,
                 atom,
                 x11rb::protocol::xproto::AtomEnum::CARDINAL,
                 32,
+                len,
                 &bytes,
             );
             let _ = conn.flush();
@@ -252,6 +254,7 @@ fn window_title_is(
     wid: u32,
     title: &[u8],
 ) -> bool {
+    use x11rb::protocol::xproto::ConnectionExt as _;
     conn.get_property(false, wid, x11rb::protocol::xproto::AtomEnum::WM_NAME, x11rb::protocol::xproto::AtomEnum::STRING, 0, 64)
         .ok()
         .and_then(|c| c.reply().ok())
