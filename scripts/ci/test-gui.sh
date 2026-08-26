@@ -35,16 +35,16 @@ if grep -q "弹窗显示失败" /tmp/xns-gui.log 2>/dev/null; then
     echo "FAIL: 服务日志存在弹窗失败记录"; exit 1
 fi
 
-# 窗口层断言(xdotool 按 WM_CLASS 查询;class 不匹配则降级为仅 via 断言)
+# 窗口层断言(xdotool 按窗口标题查询;标题不匹配则降级为仅 via 断言)
 sleep 1
 if command -v xdotool >/dev/null 2>&1; then
-    N=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ' || true)
+    N=$(xdotool search --name x-notify-service 2>/dev/null | wc -l | tr -d ' ' || true)
     if [ "$N" -ge 1 ]; then
         echo "PASS: 弹窗窗口已映射($N)"
 
         # 定位断言:无面板时工作区=全屏,期望右下角 (1280-367-14, 800-206-14)=(899,580)
         if pgrep -x xfwm4 >/dev/null 2>&1; then
-            WIN=$(xdotool search --class x-notify-service | head -1)
+            WIN=$(xdotool search --name x-notify-service | head -1)
             read -r WX WY < <(xdotool getwindowgeometry --shell "$WIN" | awk '/^X=/{x=$2} /^Y=/{y=$2} END{print x, y}')
             DX=$((WX - 899)); if [ $DX -lt 0 ]; then DX=$((-DX)); fi
             DY=$((WY - 580)); if [ $DY -lt 0 ]; then DY=$((-DY)); fi
@@ -58,12 +58,12 @@ if command -v xdotool >/dev/null 2>&1; then
 
         curl -s -X POST "$API/close" >/dev/null
         sleep 1
-        N2=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ' || true)
+        N2=$(xdotool search --name x-notify-service 2>/dev/null | wc -l | tr -d ' ' || true)
         [ "$N2" = "0" ] && echo "PASS: /close 后窗口已隐藏" || { echo "FAIL: close 后窗口仍在($N2)"; exit 1; }
         # 第二条通知顶替路径
         curl -s -X POST "$API/notify" -d '{"title":"第二条","body":"顶替"}' >/dev/null
         sleep 1
-        N3=$(xdotool search --class x-notify-service 2>/dev/null | wc -l | tr -d ' ' || true)
+        N3=$(xdotool search --name x-notify-service 2>/dev/null | wc -l | tr -d ' ' || true)
         [ "$N3" = "1" ] && echo "PASS: 新通知顶替后仍恰一个窗口" || { echo "FAIL: 顶替后窗口数 $N3"; exit 1; }
     else
         echo "SKIP: WM_CLASS 未匹配(xdotool),仅保留 via=popup 断言"
