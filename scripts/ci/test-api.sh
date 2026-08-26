@@ -22,7 +22,7 @@ trap cleanup EXIT
 cleanup; sleep 0.5
 
 # ---------- 场景1:常规启动 ----------
-"$BIN" --no-popup >/dev/null 2>&1 &
+"$BIN" --no-popup serve >/dev/null 2>&1 &
 for _ in $(seq 1 50); do curl -sf "$API/health" >/dev/null 2>&1 && break; sleep 0.2; done
 
 H=$(curl -s "$API/health")
@@ -49,7 +49,7 @@ S=$(curl -s -X POST "$API/close")
 assert "close 幂等 ok" "$(echo "$S" | jq -r .ok)" "true"
 
 # ---------- 场景2:单例静默退出(第二实例退出后原实例仍应答)----------
-"$BIN" >/dev/null 2>&1
+"$BIN" serve >/dev/null 2>&1
 RC=$?
 assert "二次启动静默退出 exit=0" "$RC" "0"
 ALIVE=$(curl -s -o /dev/null -w '%{http_code}' "$API/health")
@@ -66,7 +66,7 @@ python3 -c "
 import socket, subprocess, time, json, urllib.request
 s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind(('127.0.0.1', 17320)); s.listen(1)   # 占住默认端口
-p = subprocess.Popen(['$BIN', '--no-popup'], stdout=subprocess.DEVNULL)
+p = subprocess.Popen(['$BIN', '--no-popup', 'serve'], stdout=subprocess.DEVNULL)
 for _ in range(50):
     time.sleep(0.2)
     try:

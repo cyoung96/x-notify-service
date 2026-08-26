@@ -45,6 +45,8 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// 运行服务本体(常驻进程;开机自启与 start 拉起使用)
+    Serve,
     /// 注册开机自启动 + x-notify:// 协议,并启动服务
     Install,
     /// 清理全部注册项(自启动 + 协议)

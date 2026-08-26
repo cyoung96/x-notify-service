@@ -42,8 +42,16 @@ fn main() {
     let _logger = logging::init(&cfg);
 
     match cli.cmd {
-        // 无参数:运行服务(即常驻后台进程本体)
-        None => serve(&cfg),
+        // 无参数:显示帮助;协议拉起(url 参数)时仍直接进入服务(单例语义)
+        None => {
+            if cli.url_arg.is_some() {
+                serve(&cfg);
+            } else {
+                use clap::CommandFactory as _;
+                let _ = config::Cli::command().print_help();
+            }
+        }
+        Some(config::Command::Serve) => serve(&cfg),
         Some(config::Command::Install) => {
             // 注册 + 分离启动服务后立即退出,供安装器/脚本调用不阻塞
             install::install();
