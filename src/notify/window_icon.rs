@@ -120,7 +120,8 @@ mod imp {
     /// format=32 时 data_length 是 32 位元素个数(非字节数);
     /// 传字节长会触发 x11rb 客户端断言 panic(UOS 闪退根因,回归测试钉死)
     pub(super) fn property_units(blob: &[u8]) -> u32 {
-        u32::try_from(blob.len() / 4).unwrap_or(u32::MAX)
+        // 字节长转 u32 元素数:右移两位即 /4
+        u32::try_from(blob.len() >> 2).unwrap_or(u32::MAX)
     }
 }
 
@@ -130,13 +131,13 @@ mod tests {
 
     /// 闪退根因回归:79904 字节必须是 19976 个元素,而不是 79904
     #[test]
-    fn 属性长度按元素数计算() {
+    fn property_length_counts_elements() {
         assert_eq!(property_units(&[0u8; 79_904]), 19_976);
     }
 
     /// 构建期生成的负载可整除且恰含四档图标(128/48/32/16)
     #[test]
-    fn 图标负载结构合法() {
+    fn icon_blob_structure_valid() {
         assert_eq!(ICON_BLOB.len() % 4, 0, "负载须为 u32 流");
         let le = |o: usize| u32::from_le_bytes(ICON_BLOB[o..o + 4].try_into().unwrap());
         let mut off = 0;
