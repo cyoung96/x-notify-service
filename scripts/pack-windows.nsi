@@ -56,6 +56,8 @@ Section "安装"
 
     ; 静默完成安装:注册自启动+协议并分离启动服务(install 立即返回,不阻塞安装器)
     Exec '"$INSTDIR\${APPNAME}.exe" install'
+    DetailPrint "安装完成。SDK 与演示页:安装目录内 sdk.js / demo.html / sdk-manual.md;"
+    DetailPrint "快速测试:浏览器打开 http://127.0.0.1:17320/"
 SectionEnd
 
 Section "Uninstall"
@@ -68,6 +70,7 @@ Section "Uninstall"
     Delete "$INSTDIR\${APPNAME}.exe"
     Delete "$INSTDIR\sdk.js"
     Delete "$INSTDIR\demo.html"
+    Delete "$INSTDIR\sdk-manual.md"
     Delete "$INSTDIR\uninstall.exe"
     RMDir "$INSTDIR"
     DeleteRegKey HKCU "${UNINSTKEY}"

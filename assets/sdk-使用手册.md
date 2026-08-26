@@ -48,7 +48,8 @@ const result = await svc.notify({
 // result: { ok: true, via: 'popup' | 'system' }
 ```
 
-同目录 `demo.html` 是可直接打开的完整示例。
+服务自带演示页:浏览器打开 `http://127.0.0.1:17320/` 即测(服务内嵌,无需找文件);
+发行包内同目录的 `demo.html` + `sdk.js` 也可作静态文件对单独部署。
 
 ## 4. API
 
