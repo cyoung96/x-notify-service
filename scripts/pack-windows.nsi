@@ -9,6 +9,8 @@ ManifestDPIAware true
 
 !define APPNAME "x-notify-service"
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
+!define MUI_ICON "${STAGE}\x-notify-service.ico"
+!define MUI_UNICON "${STAGE}\x-notify-service.ico"
 
 Name "${APPNAME} ${VERSION}"
 OutFile "dist\${APPNAME}-setup-${VERSION}.exe"
