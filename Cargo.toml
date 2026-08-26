@@ -39,6 +39,70 @@ x11rb = "0.13"
 [build-dependencies]
 slint-build = "1"
 
+# ── 最严格 lint 配置:五组全 deny,仅对互斥/不适用项定向豁免 ──
+# Slint 生成代码已在 main.rs 引入处单独豁免(仅保留 correctness 审查)
+[lints.rust]
+unsafe_code = "deny" # 仅 screen.rs 各平台取屏 FFI,以局部 allow + 安全注释标注
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+restriction = { level = "deny", priority = -1 }
+
+# 元 lint:整组启用 restriction 必然触发自身,必须豁免
+blanket_clippy_restriction_lints = "allow"
+
+# restriction 组内互斥对:按本库既有风格取一侧,另一侧保持 deny 兜底
+allow_attributes_without_reason = "allow" # 保留普通 #[allow] 写法,不强制写理由
+allow_attributes = "allow" # 不强制 cfg_attr 写法
+unseparated_literal_suffix = "allow" # 1u32 贴合写法为本库风格(separated 侧保持 deny)
+inline_asm_x86_att_syntax = "allow" # 与 intel 语法互斥;项目无内联汇编
+pub_with_shorthand = "allow" # 保留 pub(crate) 简写(without_shorthand 侧保持 deny)
+semicolon_outside_block = "allow" # 惯用分号在块内(outside 侧保持 deny)
+
+# 与 Rust 惯用法/本库既有风格冲突,豁免
+implicit_return = "allow" # 表达式尾返回即惯用法
+question_mark_used = "allow" # ? 即惯用法
+absolute_paths = "allow" # 本库惯用全路径调用(std::fs::… 来源可见)
+shadow_same = "allow"
+shadow_reuse = "allow"
+shadow_unrelated = "allow" # 遮蔽绑定是惯用法
+single_char_lifetime_names = "allow"
+min_ident_chars = "allow" # 错误绑定惯用 e
+pattern_type_mismatch = "allow" # 已知误报多
+option_if_let_else = "allow" # 与 single_match_else 建议互相矛盾,且闭包化降低可读性
+non_ascii_literal = "allow" # 中文用户可见文案是产品需求
+doc_paragraphs_missing_punctuation = "allow" # 中文注释不强制句末标点
+as_conversions = "allow" # 布局/几何换算密集;具体危险转换由 cast_* 系列兜底
+float_arithmetic = "allow" # 弹窗定位几何数学必需
+arithmetic_side_effects = "allow" # 域内已保证非负
+integer_division = "allow"
+indexing_slicing = "allow" # html 解析按已验证字节下标取值
+string_slice = "allow" # 同上
+single_call_fn = "allow" # 命名步骤函数是本库可读性风格
+arbitrary_source_item_ordering = "allow" # 按逻辑分组而非字母序
+same_name_method = "allow" # 固有方法与 trait 方法重名不构成混淆
+missing_trait_methods = "allow"
+let_underscore_untyped = "allow"
+let_underscore_must_use = "allow" # notify 静默失败是既定设计
+std_instead_of_core = "allow" # 系统 GUI 应用,无 no_std 诉求
+std_instead_of_alloc = "allow"
+alloc_instead_of_core = "allow"
+str_to_string = "allow"
+mod_module_files = "allow" # 项目规范用 mod.rs(html/mod.rs)
+pub_use = "allow" # html 门面模式(对外仅 4 符号)是架构决策
+multiple_inherent_impl = "allow" # 按平台/职责分 impl 块是本库组织方式
+
+# 二进制 crate,无外部 API 消费者,库 API 类 lint 豁免
+exhaustive_enums = "allow"
+exhaustive_structs = "allow"
+missing_inline_in_public_items = "allow"
+missing_docs_in_private_items = "allow" # 私有项文档非本库规范
+cargo_common_metadata = "allow" # 内部应用;若上架 crates.io 补元数据后应收紧
+multiple_crate_versions = "allow" # 依赖树版本重复非本库可控
+
 [profile.release]
 opt-level = "z"
 lto = true

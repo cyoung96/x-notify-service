@@ -49,6 +49,26 @@ pub enum Command {
     Install,
     /// 清理全部注册项(自启动 + 协议)
     Uninstall,
+    /// 输出诊断快照(实例/端口/显示环境/工作区/注册状态),只读
+    Info,
+    /// 启动服务(后台分离进程;已在运行则幂等提示)
+    Start,
+    /// 停止运行中的服务(幂等:未运行也正常退出)
+    Stop,
+    /// 重启服务(未运行则等效于 start)
+    Restart,
+    /// 本机发一条标题通知(不经 HTTP,安装前手测用)
+    Notify {
+        /// 通知标题
+        #[arg(short = 't', long = "title")]
+        title: String,
+
+        /// 强制走系统通知兜底(不经弹窗)
+        #[arg(short, long)]
+        fallback: bool,
+    },
+    /// 关闭当前显示的弹窗(经运行中服务的 /close;幂等)
+    Close,
 }
 
 /// 最终生效配置(CLI 参数 > 配置文件 > 默认值)
@@ -76,19 +96,22 @@ struct FileConfig {
 pub fn default_log_dir() -> PathBuf {
     if cfg!(target_os = "macos") {
         // ~/Library/Logs
-        dirs::home_dir()
-            .map(|h| h.join("Library").join("Logs").join(APP_DIR_NAME))
-            .unwrap_or_else(|| PathBuf::from(".").join("logs"))
+        dirs::home_dir().map_or_else(
+            || PathBuf::from(".").join("logs"),
+            |h| h.join("Library").join("Logs").join(APP_DIR_NAME),
+        )
     } else if cfg!(windows) {
         // %LOCALAPPDATA%
-        dirs::data_local_dir()
-            .map(|d| d.join(APP_DIR_NAME).join("logs"))
-            .unwrap_or_else(|| PathBuf::from(".").join("logs"))
+        dirs::data_local_dir().map_or_else(
+            || PathBuf::from(".").join("logs"),
+            |d| d.join(APP_DIR_NAME).join("logs"),
+        )
     } else {
         // XDG: ~/.local/state
-        dirs::state_dir()
-            .map(|d| d.join(APP_DIR_NAME).join("logs"))
-            .unwrap_or_else(|| PathBuf::from(".").join("logs"))
+        dirs::state_dir().map_or_else(
+            || PathBuf::from(".").join("logs"),
+            |d| d.join(APP_DIR_NAME).join("logs"),
+        )
     }
 }
 
@@ -121,24 +144,12 @@ pub fn resolve(cli: &Cli) -> Config {
 }
 
 /// 配置文件查找顺序:--config > 二进制同目录(绿色版友好) > 平台用户配置目录
+// 解析失败告警直写 stderr:此刻日志可能尚未初始化
+#[allow(clippy::print_stderr)]
 fn load_file_config(explicit: Option<&std::path::Path>) -> FileConfig {
-    let candidates: Vec<PathBuf> = match explicit {
-        Some(p) => vec![p.to_path_buf()],
-        None => {
-            let mut v = Vec::new();
-            if let Ok(exe) = std::env::current_exe()
-                && let Some(dir) = exe.parent() {
-                    v.push(dir.join("config.toml"));
-                }
-            if let Some(p) = user_config_path() {
-                v.push(p);
-            }
-            v
-        }
-    };
-    for path in candidates {
-        match std::fs::read_to_string(&path) {
-            Ok(text) => match toml::from_str::<FileConfig>(&text) {
+    for path in candidates(explicit) {
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            match toml::from_str::<FileConfig>(&text) {
                 Ok(cfg) => {
                     log::debug!("已加载配置文件: {}", path.display());
                     return cfg;
@@ -146,9 +157,30 @@ fn load_file_config(explicit: Option<&std::path::Path>) -> FileConfig {
                 Err(e) => {
                     eprintln!("警告: 配置文件 {} 解析失败: {e}", path.display());
                 }
-            },
-            Err(_) => continue,
+            }
         }
     }
     FileConfig::default()
+}
+
+/// 当前实际生效的配置文件路径(info 诊断用);无则 None。
+/// 不考虑 --config 显式传入(诊断展示按默认查找顺序即可)
+pub fn config_in_use() -> Option<PathBuf> {
+    candidates(None).into_iter().find(|p| p.is_file())
+}
+
+fn candidates(explicit: Option<&std::path::Path>) -> Vec<PathBuf> {
+    if let Some(p) = explicit {
+        return vec![p.to_path_buf()];
+    }
+    let mut v = Vec::new();
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        v.push(dir.join("config.toml"));
+    }
+    if let Some(p) = user_config_path() {
+        v.push(p);
+    }
+    v
 }

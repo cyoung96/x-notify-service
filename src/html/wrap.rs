@@ -1,6 +1,6 @@
 //! 估宽折行:CJK 记 1 单位、其余 0.55,行容量随该行字号缩放;
-//! 行首禁则(kinsoku):折行点若使标点成为下一行行首,把前一字符一并带下去;
-//! 超过 MAX_LINES 截断,末尾追加 …。
+//! 行首禁则(`kinsoku`):折行点若使标点成为下一行行首,把前一字符一并带下去;
+//! 超过 `MAX_LINES` 截断,末尾追加 …。
 
 use super::parse::{Line, LogicalLines, Run, RunStyle};
 
@@ -23,10 +23,10 @@ pub(super) fn wrap_lines(lines: LogicalLines) -> WrappedLines {
     let mut truncated = false;
     'outer: for Line(runs) in logical {
         let line_size = runs.iter().find_map(|r| r.style.size);
-        let font = line_size.unwrap_or(super::BASE_FONT_SIZE) as f64;
-        let max_units = BASE_LINE_UNITS * (super::BASE_FONT_SIZE as f64) / font;
+        let font = f64::from(line_size.unwrap_or(super::BASE_FONT_SIZE));
+        let max_units = BASE_LINE_UNITS * f64::from(super::BASE_FONT_SIZE) / font;
         let mut cur: Vec<Run> = Vec::new();
-        let mut units = 0.0;
+        let mut units = 0f64;
         for run in runs {
             let mut seg = String::new();
             for ch in run.text.chars() {
@@ -35,9 +35,15 @@ pub(super) fn wrap_lines(lines: LogicalLines) -> WrappedLines {
                     let (head, rest) = split_with_kinsoku(seg, ch);
                     seg = rest;
                     if !seg.is_empty() {
-                        cur.push(Run { text: std::mem::take(&mut seg), style: run.style });
+                        cur.push(Run {
+                            text: std::mem::take(&mut seg),
+                            style: run.style,
+                        });
                     }
-                    out.push(LineOut { runs: std::mem::take(&mut cur), size: line_size });
+                    out.push(LineOut {
+                        runs: std::mem::take(&mut cur),
+                        size: line_size,
+                    });
                     units = head.chars().map(char_units).sum();
                     seg = head;
                     if out.len() >= MAX_LINES {
@@ -49,43 +55,75 @@ pub(super) fn wrap_lines(lines: LogicalLines) -> WrappedLines {
                 units += char_units(ch);
             }
             if !seg.is_empty() {
-                cur.push(Run { text: seg, style: run.style });
+                cur.push(Run {
+                    text: seg,
+                    style: run.style,
+                });
             }
         }
-        out.push(LineOut { runs: cur, size: line_size });
+        out.push(LineOut {
+            runs: cur,
+            size: line_size,
+        });
         if out.len() >= MAX_LINES {
             truncated = true;
             break;
         }
     }
-    if truncated
-        && let Some(last) = out.last_mut() {
-            let st = last.runs.last().map(|r| r.style).unwrap_or(RunStyle {
+    if truncated && let Some(last) = out.last_mut() {
+        let st = last.runs.last().map_or(
+            RunStyle {
                 bold: false,
                 color: None,
                 size: None,
-            });
-            last.runs.push(Run { text: "…".into(), style: st });
-        }
+            },
+            |r| r.style,
+        );
+        last.runs.push(Run {
+            text: "…".into(),
+            style: st,
+        });
+    }
     WrappedLines(out)
 }
 
-fn char_units(c: char) -> f64 {
-    if c.is_ascii() {
-        0.55
-    } else {
-        1.0
-    }
+const fn char_units(c: char) -> f64 {
+    if c.is_ascii() { 0.55 } else { 1.0 }
 }
 
-/// 行首禁则(kinsoku):这些标点不能出现在折行后下一行的开头
-fn is_no_line_start(c: char) -> bool {
-    matches!(c,
-        '，' | '。' | '、' | '；' | '：' | '！' | '？' | '…' | '·'
-        | ',' | '.' | ';' | ':' | '!' | '?'
-        | ')' | ']' | '}' | '%'
-        | '）' | '》' | '〉' | '」' | '』' | '】' | '〕'
-        | '"' | '”' | '\'' | '’'
+/// 行首禁则(`kinsoku`):这些标点不能出现在折行后下一行的开头
+const fn is_no_line_start(c: char) -> bool {
+    matches!(
+        c,
+        '，' | '。'
+            | '、'
+            | '；'
+            | '：'
+            | '！'
+            | '？'
+            | '…'
+            | '·'
+            | ','
+            | '.'
+            | ';'
+            | ':'
+            | '!'
+            | '?'
+            | ')'
+            | ']'
+            | '}'
+            | '%'
+            | '）'
+            | '》'
+            | '〉'
+            | '」'
+            | '』'
+            | '】'
+            | '〕'
+            | '"'
+            | '”'
+            | '\''
+            | '’'
     )
 }
 
@@ -136,11 +174,17 @@ mod more_tests {
     /// 基础子集:加粗/颜色/字号/br/实体/未知标签剥除
     #[test]
     fn subset_parse_and_markup() {
-        let p = parse("<b>紧急</b> 普通 <font color=\"#d93025\">红</font><br>第二行 <i>斜体剥除</i> &amp; 实体");
+        let p = parse(
+            "<b>紧急</b> 普通 <font color=\"#d93025\">红</font><br>第二行 <i>斜体剥除</i> &amp; 实体",
+        );
         let lines = to_styled_lines(&p);
         assert_eq!(lines.len(), 2, "br 应产生两行");
         assert!(lines[0].0.contains("**紧急**"), "加粗标记: {}", lines[0].0);
-        assert!(lines[0].0.contains("<font color=\"#d93025\">红</font>"), "颜色标记: {}", lines[0].0);
+        assert!(
+            lines[0].0.contains("<font color=\"#d93025\">红</font>"),
+            "颜色标记: {}",
+            lines[0].0
+        );
         assert!(!lines[0].0.contains("<i>"), "未知标签应剥除");
         assert!(!lines[1].0.contains("斜体剥除</i>"));
         assert!(lines[1].0.contains("斜体剥除"), "剥除后内文保留");
@@ -157,7 +201,7 @@ mod more_tests {
         assert_eq!(lines[1].1, None, "超范围字号应忽略");
     }
 
-    /// 超过 MAX_LINES 截断加省略号
+    /// 超过 `MAX_LINES` 截断加省略号
     #[test]
     fn truncate_with_ellipsis() {
         let text = std::array::from_fn::<_, 8, _>(|_| "很长的一行内容呀".repeat(3)).join("<br>");

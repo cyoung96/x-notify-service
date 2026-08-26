@@ -55,6 +55,11 @@ assert "二次启动静默退出 exit=0" "$RC" "0"
 ALIVE=$(curl -s -o /dev/null -w '%{http_code}' "$API/health")
 assert "原实例仍在服务" "$ALIVE" "200"
 
+# ---------- 场景2.5:info 诊断命令(只读,headless 下应仍可运行)----------
+INFO_OUT=$("$BIN" info 2>/dev/null)
+assert "info 退出码 0" "$?" "0"
+echo "$INFO_OUT" | grep -q "工作区" && echo "PASS: info 输出含工作区诊断" || { echo "FAIL: info 输出缺工作区"; exit 1; }
+
 # ---------- 场景3:端口向后探测 ----------
 pkill -f 'x-notify-service'; sleep 0.5
 python3 -c "
@@ -74,5 +79,18 @@ p.terminate(); p.wait()
 print('PASS: 默认端口被占时落到 17321 且 /health 报实际端口')
 "
 pkill -f 'x-notify-service' 2>/dev/null || true
+
+# ---------- 场景4:CLI 生命周期(start/stop/restart/close,均幂等)----------
+"$BIN" stop >/dev/null 2>&1; assert "stop 未运行时幂等 exit=0" "$?" "0"
+"$BIN" start >/dev/null 2>&1; assert "start exit=0" "$?" "0"
+ALIVE=$(curl -s -o /dev/null -w '%{http_code}' "$API/health"); assert "start 后 health 200" "$ALIVE" "200"
+"$BIN" start >/dev/null 2>&1; assert "start 重复执行幂等 exit=0" "$?" "0"
+"$BIN" restart >/dev/null 2>&1; assert "restart exit=0" "$?" "0"
+ALIVE=$(curl -s -o /dev/null -w '%{http_code}' "$API/health"); assert "restart 后 health 200" "$ALIVE" "200"
+"$BIN" close >/dev/null 2>&1; assert "close 幂等 exit=0" "$?" "0"
+"$BIN" stop >/dev/null 2>&1; assert "stop exit=0" "$?" "0"
+ALIVE=$(curl -s -o /dev/null -w '%{http_code}' "$API/health" || true)
+assert "stop 后 health 不通" "$ALIVE" "000"
+"$BIN" start >/dev/null 2>&1 || true   # 收尾:留给后续场景的服务态
 
 echo "== 集成测试全部通过 =="

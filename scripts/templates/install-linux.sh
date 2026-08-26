@@ -9,8 +9,24 @@ CONF_DIR="$HOME/.config/x-notify-service"
 
 mkdir -p "$BIN_DIR" "$CONF_DIR"
 
-cp "$SRC_DIR/bin/x-notify-service" "$BIN_DIR/x-notify-service"
-chmod +x "$BIN_DIR/x-notify-service"
+# 停止在跑的旧实例:覆盖正在执行的二进制会报 Text file busy。
+# 经端口文件取 pid,校验其 cmdline 含本程序名后再 kill,避免 pid 复用误杀
+PORT_FILE="$HOME/.local/share/x-notify-service/port"
+if [ -f "$PORT_FILE" ]; then
+    pid=$(sed -n 's/.*"pid":\([0-9][0-9]*\).*/\1/p' "$PORT_FILE")
+    if [ -n "$pid" ] && tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q "x-notify-service"; then
+        kill "$pid" 2>/dev/null || true
+        i=0
+        while [ "$i" -lt 20 ] && kill -0 "$pid" 2>/dev/null; do sleep 0.1; i=$((i+1)); done
+        kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
+        echo "已停止旧实例(pid $pid)"
+    fi
+fi
+
+# 同目录临时文件 + mv 覆盖:rename 对运行中二进制也合法,与停实例互为保险
+cp "$SRC_DIR/bin/x-notify-service" "$BIN_DIR/.x-notify-service.new"
+chmod +x "$BIN_DIR/.x-notify-service.new"
+mv -f "$BIN_DIR/.x-notify-service.new" "$BIN_DIR/x-notify-service"
 
 if [ ! -f "$CONF_DIR/config.toml" ]; then
     cp "$SRC_DIR/config/config.toml" "$CONF_DIR/config.toml"

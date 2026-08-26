@@ -1,16 +1,38 @@
 //! x-notify:// 自定义协议注册(全部用户级,无需提权)
 //! - Windows: HKCU\Software\Classes\x-notify
-//! - Linux/UOS/麒麟: ~/.local/share/applications + MimeType
+//! - Linux/UOS/麒麟: ~/.local/share/applications + `MimeType`
 //! - macOS: 依赖 .app bundle(仅测试环境,经 lsregister)
 //!
 //! 由 install/uninstall 统一调用,不单独暴露子命令。
 
 pub const SCHEME: &str = "x-notify";
 
+/// 协议是否已注册(info 诊断用)
+#[cfg(windows)]
+pub fn is_registered() -> bool {
+    use winreg::RegKey;
+    use winreg::enums::HKEY_CURRENT_USER;
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(format!("Software\\Classes\\{SCHEME}"))
+        .is_ok()
+}
+
+/// 协议是否已注册:desktop 文件存在即视为已注册
+#[cfg(target_os = "linux")]
+pub fn is_registered() -> bool {
+    desktop_path().exists()
+}
+
+/// macOS 仅测试环境:不做查询,恒报未注册
+#[cfg(target_os = "macos")]
+pub const fn is_registered() -> bool {
+    false
+}
+
 #[cfg(windows)]
 pub fn register() -> Result<(), Box<dyn std::error::Error>> {
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_CREATE_SUB_KEY};
     use winreg::RegKey;
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_CREATE_SUB_KEY};
 
     let exe = std::env::current_exe()?;
     // 冲突检测:已有其他程序的注册则警告后覆盖(HKCU 后写者赢)
@@ -35,8 +57,8 @@ pub fn register() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(windows)]
 pub fn unregister() -> Result<(), Box<dyn std::error::Error>> {
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_WRITE};
     use winreg::RegKey;
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_WRITE};
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let classes = hkcu.open_subkey_with_flags("Software\\Classes", KEY_WRITE)?;
@@ -94,12 +116,17 @@ pub fn register() -> Result<(), Box<dyn std::error::Error>> {
     );
     std::fs::write(&path, content)?;
     // 刷新桌面数据库并把本应用设为 scheme 默认处理器(失败不阻塞)
-    let apps_dir = path.parent().unwrap();
-    let _ = std::process::Command::new("update-desktop-database")
-        .arg(apps_dir)
-        .status();
+    if let Some(apps_dir) = path.parent() {
+        let _ = std::process::Command::new("update-desktop-database")
+            .arg(apps_dir)
+            .status();
+    }
     let _ = std::process::Command::new("xdg-mime")
-        .args(["default", path.file_name().unwrap().to_string_lossy().as_ref(), &format!("x-scheme-handler/{SCHEME}")])
+        .args([
+            "default",
+            our_desktop.as_str(),
+            &format!("x-scheme-handler/{SCHEME}"),
+        ])
         .status();
     Ok(())
 }
@@ -111,9 +138,11 @@ pub fn unregister() -> Result<(), Box<dyn std::error::Error>> {
         Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => return Err(e.into()),
     }
-    let _ = std::process::Command::new("update-desktop-database")
-        .arg(desktop_path().parent().unwrap())
-        .status();
+    if let Some(apps_dir) = desktop_path().parent() {
+        let _ = std::process::Command::new("update-desktop-database")
+            .arg(apps_dir)
+            .status();
+    }
     Ok(())
 }
 
@@ -125,7 +154,10 @@ pub fn register() -> Result<(), Box<dyn std::error::Error>> {
         return Err("macOS 协议注册需要 .app bundle(用 scripts/pack-macos.sh 生成后运行)".into());
     };
     let lsregister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
-    let status = std::process::Command::new(lsregister).arg("-f").arg(&bundle).status()?;
+    let status = std::process::Command::new(lsregister)
+        .arg("-f")
+        .arg(&bundle)
+        .status()?;
     if status.success() {
         Ok(())
     } else {
@@ -140,7 +172,10 @@ pub fn unregister() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(()); // 未运行在 .app bundle 内:本就未注册,视为无操作
     };
     let lsregister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
-    let _ = std::process::Command::new(lsregister).arg("-u").arg(&bundle).status();
+    let _ = std::process::Command::new(lsregister)
+        .arg("-u")
+        .arg(&bundle)
+        .status();
     Ok(())
 }
 

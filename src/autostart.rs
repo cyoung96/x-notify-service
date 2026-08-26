@@ -4,7 +4,7 @@ use auto_launch::{AutoLaunch, AutoLaunchBuilder, MacOSLaunchMode};
 
 use crate::config::APP_DIR_NAME;
 
-/// 用户级开机自启动(Windows: HKCU Run / macOS: LaunchAgent / Linux: XDG autostart)
+/// 用户级开机自启动(Windows: HKCU Run / macOS: `LaunchAgent` / Linux: XDG autostart)
 fn auto() -> Result<AutoLaunch, Box<dyn Error>> {
     let exe = std::env::current_exe()?;
     let path = exe.to_string_lossy().to_string();
@@ -21,4 +21,9 @@ pub fn enable() -> Result<(), Box<dyn Error>> {
 
 pub fn disable() -> Result<(), Box<dyn Error>> {
     auto()?.disable().map_err(Into::into)
+}
+
+/// 是否已注册开机自启动(info 诊断用)
+pub fn is_enabled() -> Result<bool, Box<dyn Error>> {
+    auto()?.is_enabled().map_err(Into::into)
 }
