@@ -65,9 +65,18 @@ if command -v xdotool >/dev/null 2>&1; then
                 echo "$STATE" | grep -q "_NET_WM_STATE_ABOVE" && break
                 sleep 0.2
             done
-            echo "$STATE" | grep -q "_NET_WM_STATE_ABOVE" \
-                && echo "PASS: 弹窗置顶(_NET_WM_STATE_ABOVE)" \
-                || { echo "FAIL: 弹窗缺置顶态,实际: $STATE"; exit 1; }
+            if echo "$STATE" | grep -q "_NET_WM_STATE_ABOVE"; then
+                echo "PASS: 弹窗置顶(_NET_WM_STATE_ABOVE)"
+            else
+                # 诊断:手工发同样的 ClientMessage,区分"slint 没发"与"WM 不理"
+                xdotool set_window --over "$WIN" 2>/dev/null; sleep 0.5
+                AFTER=$(xprop -id "$WIN" _NET_WM_STATE 2>/dev/null)
+                echo "手工 ClientMessage 后: $AFTER"
+                echo "$AFTER" | grep -q "_NET_WM_STATE_ABOVE" \
+                    && echo "FAIL: slint 未发置顶消息(手工可生效)" \
+                    || echo "FAIL: WM 不应答任何置顶消息"
+                exit 1
+            fi
             if [ "$DX" -le 6 ] && [ "$DY" -le 6 ]; then
                 echo "PASS: 弹窗落在工作区右下角(WM 重摆复校生效)"
             else
