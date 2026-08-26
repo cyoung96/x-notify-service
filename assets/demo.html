@@ -2,132 +2,43 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>x-notify-service 演示</title>
     <style>
-      body { font-family: system-ui, -apple-system, sans-serif; max-width: 580px; margin: 32px auto; padding: 0 16px; color: #1f2329; }
-      h2 { margin-bottom: 4px; }
-      fieldset { margin-bottom: 16px; border: 1px solid #e4e6eb; border-radius: 8px; }
-      label { display: block; margin: 8px 0 4px; font-size: 14px; }
-      input { padding: 6px 10px; font-size: 14px; width: 92%; box-sizing: border-box; }
-      button { padding: 6px 14px; font-size: 14px; margin: 8px 8px 0 0; cursor: pointer; border: 1px solid #d0d3d9; background: #fff; border-radius: 6px; }
-      button.primary { background: #4c8dff; border-color: #4c8dff; color: #fff; }
-      #log { background: #f5f6f8; padding: 12px; min-height: 100px; font-size: 12px; white-space: pre-wrap; border-radius: 6px; font-family: ui-monospace, monospace; }
-      .tip { color: #86909c; font-size: 12px; }
+      body { font-family: system-ui, sans-serif; max-width: 560px; margin: 32px auto; padding: 0 16px; }
+      input { padding: 6px 10px; font-size: 14px; width: 100%; box-sizing: border-box; margin: 4px 0 12px; }
+      button { padding: 6px 16px; font-size: 14px; cursor: pointer; }
+      #log { margin-top: 16px; color: #86909c; font-size: 13px; white-space: pre-wrap; }
     </style>
   </head>
   <body>
-    <h2>x-notify-service 演示页</h2>
-    <p class="tip">本页由服务内嵌提供(浏览器打开 http://127.0.0.1:17320/ 即用);亦可作静态文件对(sdk.js 同目录)单独部署。</p>
-
-    <fieldset>
-      <legend>服务</legend>
-      <span id="status">检测中…</span>
-    </fieldset>
-
-    <fieldset>
-      <legend>通知</legend>
-      <label>标题 <input id="inp-title" value="工单提醒" /></label>
-      <label>正文(HTML 子集:加粗 / 颜色 / 字号 / br)<input id="inp-body" value="&lt;b&gt;张三&lt;/b&gt; 提交了 &lt;font color=&quot;#d93025&quot;&gt;紧急&lt;/font&gt; 归档申请,&lt;br&gt;&lt;font color=&quot;#00873a&quot;&gt;已超时 2 小时&lt;/font&gt;" /></label>
-      <button type="button" class="primary" id="btn-send">发送通知</button>
-      <button type="button" id="btn-launch">拉起服务</button>
-      <button type="button" id="btn-close">关闭弹窗</button>
-    </fieldset>
-
-    <fieldset>
-      <legend>日志</legend>
-      <div id="log"></div>
-    </fieldset>
+    <h2>通知演示</h2>
+    <p id="status">检测中…</p>
+    <label>标题<input id="title" value="工单提醒" /></label>
+    <label>正文(HTML 子集)<input id="body" value="&lt;b&gt;张三&lt;/b&gt; 提交了 &lt;font color=&quot;#d93025&quot;&gt;紧急&lt;/font&gt; 归档申请" /></label>
+    <button id="send">发送</button>
+    <button id="close">关闭弹窗</button>
+    <div id="log"></div>
 
     <script type="module">
-      const log = (msg) => {
-        const el = document.getElementById('log')
-        const t = new Date().toTimeString().slice(0, 8)
-        el.textContent += '[' + t + '] ' + msg + '\n'
-      }
-      const setStatus = (text) => {
-        document.getElementById('status').textContent = text
-      }
+      import { createNotifyService } from './sdk.js'
+      const svc = createNotifyService()
+      const log = (m) => { document.getElementById('log').textContent += m + '\n' }
 
-      // file:// 直开降级:原生 fetch 直连(与 SDK 同语义)
-      function rawBridge() {
-        const probe = () => {
-          const jobs = []
-          for (let p = 17320; p < 17330; p++) {
-            jobs.push(
-              fetch('http://127.0.0.1:' + p + '/health', { cache: 'no-store' })
-                .then((r) => (r.ok ? r.json() : null))
-                .then((j) => (j !== null && j.app === 'x-notify-service' ? 'http://127.0.0.1:' + p : null))
-                .catch(() => null),
-            )
-          }
-          return Promise.all(jobs).then((rs) => {
-            for (const r of rs) if (r !== null) return r
-            return null
-          })
-        }
-        let base = null
-        return {
-          start: () =>
-            probe().then((b) => {
-              base = b
-              return b !== null
-            }),
-          notify: (opts) =>
-            probe().then((b) => {
-              base = b
-              if (b === null) return { ok: false }
-              return fetch(b + '/notify', {
-                method: 'POST',
-                body: JSON.stringify({ title: opts.title, body: opts.body }),
-              })
-                .then((r) => r.json())
-                .catch(() => ({ ok: false }))
-            }),
-          close: () =>
-            probe().then((b) => {
-              if (b === null) return undefined
-              return fetch(b + '/close', { method: 'POST' }).catch(() => undefined)
-            }),
-        }
-      }
+      svc.start().then((ok) => {
+        document.getElementById('status').textContent = ok ? '服务在线' : '服务未运行(发送将静默失败)'
+      })
 
-      function main() {
-        // 优先相对路径加载 SDK;file:// 下 ESM 受限时退回原生直连
-        import('./sdk.js')
-          .then((mod) => {
-            window.bridge = mod.createNoticeBridge()
-            log('SDK 已按相对路径 ./sdk.js 加载')
-            window.bridge.start().then((ok) => setStatus(ok ? '在线' : '未安装/未运行'))
-          })
-          .catch(() => {
-            window.bridge = rawBridge()
-            log('SDK 加载受限(file:// 不支持 ESM),已退回原生直连模式')
-            window.bridge.start().then((ok) => setStatus(ok ? '在线' : '未安装/未运行'))
-          })
-
-        document.getElementById('btn-send').addEventListener('click', () => {
-          const title = document.getElementById('inp-title').value
-          const body = document.getElementById('inp-body').value
-          window.bridge
-            .notify({ title, body })
-            .then((r) => log(r.ok ? '发送成功: via=' + r.via : '未送达(服务未运行,静默失败)'))
-            .catch((e) => log('发送失败: ' + String(e)))
+      document.getElementById('send').onclick = async () => {
+        const r = await svc.notify({
+          title: title.value,
+          body: body.value,
         })
-        document.getElementById('btn-launch').addEventListener('click', () => {
-          window.bridge
-            .start(10000)
-            .then((ok) => log(ok ? '服务已就绪' : '拉起失败(未安装或超时)'))
-        })
-        document.getElementById('btn-close').addEventListener('click', () => {
-          window.bridge
-            .close()
-            .then(() => log('已关闭弹窗'))
-            .catch((e) => log('关闭失败: ' + String(e)))
-        })
+        log(r.ok ? `已发送(via=${r.via})` : '未送达:服务未运行')
       }
-
-      main()
+      document.getElementById('close').onclick = async () => {
+        await svc.close()
+        log('已关闭')
+      }
     </script>
   </body>
 </html>
