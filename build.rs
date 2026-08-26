@@ -1,5 +1,5 @@
 // UI 编译失败即构建失败,panic 是 build script 的标准失败方式
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, clippy::panic)]
 
 fn main() {
     slint_build::compile("ui/popup.slint").unwrap();
@@ -15,8 +15,6 @@ fn main() {
         if e.kind() == std::io::ErrorKind::NotFound {
             println!("cargo:warning=未找到 windres,跳过图标嵌入(本地开发环境)");
         } else {
-            // build script 的标准失败方式(顶部已豁免 unwrap/expect 系)
-            #[allow(clippy::panic)]
             panic!("图标资源编译失败: {e}");
         }
     }
