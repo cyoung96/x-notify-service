@@ -1,10 +1,17 @@
 import { APP_ID, DEFAULT_BASE_PORT, DEFAULT_PORT_RANGE, PROTOCOL_URL } from './constants'
 import type { NotifyOptions, NotifyResult, NotifyService, NotifyServiceOptions } from './types'
 
+/** /health 响应体(仅校验身份字段) */
 interface HealthBody {
   readonly app?: unknown
 }
 
+/**
+ * 身份校验:响应体是否来自本服务
+ *
+ * @param data - /health 解析出的 JSON
+ * @returns 是否为 x-notify-service 实例
+ */
 function isHealth(data: unknown): data is HealthBody {
   if (data === null || typeof data !== 'object') {
     return false
@@ -12,12 +19,27 @@ function isHealth(data: unknown): data is HealthBody {
   return (data as HealthBody).app === APP_ID
 }
 
+/**
+ * 睡眠等待
+ *
+ * @param ms - 等待毫秒数
+ */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
 }
 
+/**
+ * 创建通知服务客户端
+ *
+ * 经端口区间探测 + /health 身份校验发现本机服务;
+ * notify 静默失败(未安装/未运行返回 { ok: false },不拉起不抛错),
+ * 页面初始化时应对需要通知能力的角色调用 start() 提前拉起。
+ *
+ * @param options - 端口与超时配置(须与服务端一致)
+ * @returns 通知服务客户端实例
+ */
 export function createNotifyService(options: NotifyServiceOptions = {}): NotifyService {
   const basePort = options.basePort ?? DEFAULT_BASE_PORT
   const portRange = options.portRange ?? DEFAULT_PORT_RANGE
@@ -199,13 +221,16 @@ export function createNotifyService(options: NotifyServiceOptions = {}): NotifyS
     await fetch(`${base}/close`, { method: 'POST' }).catch(() => undefined)
   }
 
+  /** 清空已缓存的 baseUrl(下次调用重新探测) */
+  function destroy(): void {
+    cachedBaseUrl = null
+  }
+
   return {
     discover,
     start,
     notify,
     close,
-    destroy() {
-      cachedBaseUrl = null
-    },
+    destroy,
   }
 }
