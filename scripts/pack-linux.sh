@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 打包 Linux 交付物(正式):tgz 绿色版(bin + config + demo + sdk + install.sh + 图标)
+# 打包 Linux 交付物(正式):tar.xz 绿色版(bin + config + demo + sdk + install.sh + 图标)
 #
 # 兼容性关键:一律在 Debian 10(glibc 2.28)容器内编译。glibc 向后兼容,
 # 产出可跑在 glibc ≥ 2.28 的新老系统(UOS 20/麒麟 V10 ~ 最新发行版);
@@ -67,7 +67,7 @@ assert_glibc() { # $1=二进制
     echo "PASS: GLIBC 需求 ≤ 2.$GLIBC_FLOOR(实际最高 GLIBC_2.${worst:-无})"
 }
 
-# 组装单个架构的 tgz:$1=archname(x86_64/aarch64) $2=二进制路径
+# 组装单个架构的 tar.xz:$1=archname(x86_64/aarch64) $2=二进制路径
 assemble() {
     local arch="$1" bin="$2"
     local pkg="x-notify-service-${VERSION}-linux-${arch}"
@@ -82,9 +82,9 @@ assemble() {
     cp assets/demo.html "$out/demo.html"
     cp sdk/js/packages/sdk/dist/x-notify-service-sdk.js "$out/sdk.js"
     cp -R assets/icons/hicolor "$out/icons/"
-    tar -czf "dist/${pkg}.tar.gz" -C dist "$pkg"
+    tar -cJf "dist/${pkg}.tar.xz" -C dist "$pkg"
     rm -rf "$out"
-    ls -lh "dist/${pkg}.tar.gz" | awk '{print "==> 产出:", $5, $9}'
+    ls -lh "dist/${pkg}.tar.xz" | awk '{print "==> 产出:", $5, $9}'
 }
 
 want() { [ "$ARCHES" = "all" ] || [ "$ARCHES" = "$1" ]; }

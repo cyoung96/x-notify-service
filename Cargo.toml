@@ -21,7 +21,8 @@ slint = { version = "1", default-features = false, features = [
     "std",
     "compat-1-2",
     "renderer-software",
-    "backend-winit",
+    # 只带 X11 后端:Wayland 会话在应用层即降级系统通知,二进制无需 wayland 协议栈(显著减小体积)
+    "backend-winit-x11",
 ] }
 
 [target.'cfg(windows)'.dependencies]

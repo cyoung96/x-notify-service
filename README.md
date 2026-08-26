@@ -81,14 +81,14 @@ pnpm demo        # 演示页 http://localhost:8086
 ## 打包(同构脚本)
 
 ```
-scripts/pack-linux.sh    [target]   # 正式:tgz 绿色版(bin+config+demo+sdk+install.sh+图标)
+scripts/pack-linux.sh    [target]   # 正式:tar.xz 绿色版(bin+config+demo+sdk+install.sh+图标)
                                     # 默认 x86_64;飞腾/鲲鹏传 aarch64-unknown-linux-gnu;
                                     # macOS 上经 Docker(rust:1-slim)交叉编译
 scripts/pack-windows.sh  [target]   # 正式:NSIS setup.exe(per-user 免 UAC、可选目录、LZMA)
 scripts/pack-macos.sh              # 仅测试:.app bundle(验证 x-notify:// 协议拉起)
 ```
 
-- Linux 安装(全程普通用户权限):解压 tgz → `./install.sh` → 复制到 `~/.local/bin`、
+- Linux 安装(全程普通用户权限):解压 tar.xz → `./install.sh` → 复制到 `~/.local/bin`、
   图标到 `~/.local/share/icons`、演示页与 SDK 到 `~/.local/share/x-notify-service/`,
   并调用 `x-notify-service install` 完成用户级注册(自启动 + 协议)+ 分离启动服务。
 - Windows 安装:双击 setup.exe → 选目录 → 安装末尾静默注册并启动服务。
