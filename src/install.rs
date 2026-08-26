@@ -30,12 +30,12 @@ fn set_user_path(add: bool) {
         vtype: winreg::enums::REG_EXPAND_SZ,
     });
     // 注册表 Path 值为 UTF-16LE:位拼解码(低字节在前)
-    let words: Vec<u16> = raw
-        .bytes
-        .chunks_exact(2)
-        .map(|b| match b {
-            [lo, hi] => (u16::from(*hi) << 8) | u16::from(*lo),
-            _ => 0,
+    let (words, _) = raw.bytes.as_chunks::<2>();
+    let words: Vec<u16> = words
+        .iter()
+        .map(|b| {
+            let [lo, hi] = *b;
+            (u16::from(hi) << 8) | u16::from(lo)
         })
         .collect();
     let cur = String::from_utf16_lossy(&words);
