@@ -109,6 +109,7 @@ pub fn register() -> Result<(), Box<dyn std::error::Error>> {
          Exec={exe} %u\n\
          Icon={name}\n\
          StartupWMClass={name}\n\
+         X-Deepin-AppID={name}\n\
          NoDisplay=true\n\
          Terminal=false\n\
          MimeType=x-scheme-handler/{scheme};\n",
