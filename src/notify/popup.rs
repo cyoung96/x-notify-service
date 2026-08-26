@@ -128,6 +128,9 @@ fn fixup_timers(popup: &PopupWindow, area: crate::screen::WorkArea) -> Vec<slint
                         log::warn!("WM 重摆了弹窗(现 {cur:?}),复校回 {expected:?}");
                     }
                     position(&p, &area);
+                    // 重复写入多档图标:slint 的单图设置是惰性的,后写者赢
+                    #[cfg(target_os = "linux")]
+                    crate::notify::window_icon::set();
                 }
             },
         );
