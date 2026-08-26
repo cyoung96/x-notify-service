@@ -15,7 +15,8 @@
 ### 运行与安装
 
 ```
-x-notify-service              # 运行服务(常驻进程;无参数即此模式)
+x-notify-service              # 无参数:显示帮助
+x-notify-service serve        # 运行服务本体(常驻进程;开机自启与 start 拉起使用)
 x-notify-service install      # 注册开机自启 + x-notify:// 协议,并启动服务
 x-notify-service uninstall    # 清理全部注册项
 x-notify-service info         # 诊断快照:实例/端口/显示环境/工作区/注册状态(只读)

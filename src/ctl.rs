@@ -14,7 +14,7 @@ pub enum Probe {
 
 /// 直连 GET /health(300ms 超时);None = 连不上,Some = 有服务在听
 pub fn probe_port(port: u16) -> Option<Probe> {
-    let body = request(port, "GET", "/health")?;
+    let body = request(port, "GET", "/health", "")?;
     let json: serde_json::Value = serde_json::from_str(body.trim()).ok()?;
     if json["app"] == api::APP_ID {
         Some(Probe::Ours {
@@ -26,13 +26,14 @@ pub fn probe_port(port: u16) -> Option<Probe> {
 }
 
 /// 向本机服务发一次极简 HTTP 请求,返回响应 body;连不上返回 None
-pub fn request(port: u16, method: &str, path: &str) -> Option<String> {
+pub fn request(port: u16, method: &str, path: &str, body: &str) -> Option<String> {
     use std::io::{Read as _, Write as _};
     let mut conn = std::net::TcpStream::connect(("127.0.0.1", port)).ok()?;
     let _ = conn.set_read_timeout(Some(std::time::Duration::from_millis(300)));
     let _ = conn.set_write_timeout(Some(std::time::Duration::from_millis(300)));
     let req = format!(
-        "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+        "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{body}",
+        body.len()
     );
     conn.write_all(req.as_bytes()).ok()?;
     let mut buf = String::new();
@@ -98,6 +99,7 @@ pub fn start_detached() {
         return;
     };
     let mut cmd = std::process::Command::new(exe);
+    cmd.arg("serve");
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;

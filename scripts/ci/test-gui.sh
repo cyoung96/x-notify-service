@@ -28,7 +28,7 @@ else
 fi
 xprop -root -f _NET_WORKAREA 32c -set _NET_WORKAREA "0, 0, 1280, 800"
 
-DISPLAY="$DISPLAY_ID" "$BIN" >/tmp/xns-gui.log 2>&1 &
+DISPLAY="$DISPLAY_ID" "$BIN" serve >/tmp/xns-gui.log 2>&1 &
 for _ in $(seq 1 50); do curl -sf "$API/health" >/dev/null 2>&1 && break; sleep 0.2; done
 
 VIA=$(curl -s -X POST "$API/notify" -d '{"title":"GUI 冒烟","body":"Xvfb 真实渲染弹窗"}' | jq -r .via)
