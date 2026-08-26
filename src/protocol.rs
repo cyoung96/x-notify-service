@@ -41,10 +41,9 @@ pub fn register() -> Result<(), Box<dyn std::error::Error>> {
     if let Ok(cmd) = hkcu
         .open_subkey(format!("Software\\Classes\\{SCHEME}\\shell\\open\\command"))
         .and_then(|k| k.get_value::<String, _>(""))
+        && !cmd.contains(exe_path.as_ref())
     {
-        if !cmd.contains(exe_path.as_ref()) {
-            log::warn!("{SCHEME}:// 协议已被其他程序注册({cmd}),将覆盖");
-        }
+        log::warn!("{SCHEME}:// 协议已被其他程序注册({cmd}),将覆盖");
     }
     let classes = hkcu.open_subkey_with_flags("Software\\Classes", KEY_CREATE_SUB_KEY)?;
     let (key, _) = classes.create_subkey(SCHEME)?;

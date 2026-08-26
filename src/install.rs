@@ -5,7 +5,7 @@ use crate::{autostart, ctl, protocol};
 
 #[cfg(windows)]
 // Win32 注册表/消息广播 FFI
-#[allow(unsafe_code)]
+#[allow(unsafe_code, clippy::multiple_unsafe_ops_per_block)]
 fn set_user_path(add: bool) {
     use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
     use winreg::{RegKey, RegValue};
@@ -29,12 +29,16 @@ fn set_user_path(add: bool) {
         bytes: Vec::new(),
         vtype: winreg::enums::REG_EXPAND_SZ,
     });
-    let cur = String::from_utf16_lossy(
-        &raw.bytes
-            .chunks_exact(2)
-            .map(|b| u16::from_le_bytes([b[0], b[1]]))
-            .collect::<Vec<u16>>(),
-    );
+    // 注册表 Path 值为 UTF-16LE:位拼解码(低字节在前)
+    let words: Vec<u16> = raw
+        .bytes
+        .chunks_exact(2)
+        .map(|b| match b {
+            [lo, hi] => (u16::from(*hi) << 8) | u16::from(*lo),
+            _ => 0,
+        })
+        .collect();
+    let cur = String::from_utf16_lossy(&words);
     let mut entries: Vec<String> = cur
         .split(';')
         .filter(|s| !s.is_empty())
@@ -67,8 +71,9 @@ fn set_user_path(add: bool) {
         eprintln!("写入用户 PATH 失败: {e}");
         return;
     }
-    // 广播环境变更:新开的终端即可命中;已开终端需重开
+    // 环境变更广播:新开终端即可命中,已开终端需重开
     let param: Vec<u16> = "Environment\0".encode_utf16().collect();
+    // SAFETY: 广播常量消息;指针指向本栈上有效的 UTF-16 参数串
     unsafe {
         windows_sys::Win32::UI::WindowsAndMessaging::SendMessageTimeoutW(
             windows_sys::Win32::UI::WindowsAndMessaging::HWND_BROADCAST,
