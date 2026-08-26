@@ -29,7 +29,11 @@ pub fn parse(html: &str) -> Parsed {
 /// 字号不进标记(StyledText 不支持行内字号),由调用方按行设置元素字号。
 /// 返回 (该行标记, 该行字号)。
 pub fn to_styled_lines(parsed: &Parsed) -> Vec<(String, Option<u16>)> {
+    // 门面边界:内部 FontSize 收口为裸 u16,调用方(popup)无需感知该类型
     markup::styled_lines(&parsed.lines)
+        .into_iter()
+        .map(|(markup, size)| (markup, size.map(|f| f.0)))
+        .collect()
 }
 
 /// 提取纯文本(供系统通知兜底)
