@@ -53,6 +53,8 @@ jobs:
       - run: npm install -g pnpm@10
       - run: cd sdk/js && pnpm install --silent && pnpm -F @hexinfo/x-notify-service-sdk build
       - run: cargo test
+      # cargo test 只编 test harness,不产出 bin 本体;build 供 test-fallback 用
+      - run: cargo build
       # 此处仅留需真实 D-Bus 环境的兜底端到端
       - run: dbus-run-session -- scripts/ci/test-fallback.sh
       - run: cd sdk/js && pnpm -F @hexinfo/x-notify-service-sdk test

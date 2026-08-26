@@ -1,37 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- x-notify-service 统一图标:品牌蓝径向渐变瓦片 + 响铃中的白铃铛 -->
-  <!-- 构图全对称;响铃动势由双侧声波弧承担,立体感由渐变/高光/球面铃舌/正下投影承担 -->
+  <!-- x-notify-service 统一图标:品牌蓝平瓦 + 白色平钟,纯平面 -->
+  <!-- 动势 = 铃舌钟摆残影:轨迹弧两端渐隐 + 双侧残影位,振动示意图语法 -->
   <!-- 由本源再生全部位图:scripts/gen-icons.sh -->
   <defs>
-    <radialGradient id="bg" cx="0.5" cy="0.32" r="0.95">
-      <stop offset="0" stop-color="#68a1ff"/>
-      <stop offset="1" stop-color="#3a7af5"/>
-    </radialGradient>
-    <linearGradient id="bell" x1="0.15" y1="0" x2="0.6" y2="1">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.55" stop-color="#f4f8ff"/>
-      <stop offset="1" stop-color="#d3e0f8"/>
+    <linearGradient id="w" x1="194" y1="0" x2="318" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.05"/>
     </linearGradient>
-    <radialGradient id="clap" cx="0.35" cy="0.3" r="0.9">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#c9d8f4"/>
-    </radialGradient>
-    <filter id="soften" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="10"/>
-    </filter>
-    <filter id="cast" x="-40%" y="-40%" width="180%" height="180%">
-      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0a2a66" flood-opacity="0.4"/>
-    </filter>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <!-- 声波弧:以铃铛为圆心的两段对称弧 -->
-  <g stroke="#ffffff" stroke-width="22" stroke-linecap="round" fill="none">
-    <path d="M 158 76 A 190 190 0 0 0 70 190"/>
-    <path d="M 354 76 A 190 190 0 0 1 442 190"/>
-  </g>
-  <g filter="url(#cast)">
-    <path fill="url(#bell)" d="M256 92C194 92 142 138 142 210v72s-14 26-30 48c-10 14-2 30 16 30h256c18 0 26-16 16-30-16-22-30-48-30-48v-72c0-72-52-118-114-118z"/>
-    <ellipse cx="205" cy="150" rx="52" ry="34" fill="#ffffff" opacity="0.9" filter="url(#soften)"/>
-  </g>
-  <circle cx="256" cy="398" r="30" fill="url(#clap)"/>
+  <rect width="512" height="512" rx="112" fill="#4c8dff"/>
+  <!-- 钟摆残影:枢轴 (256,310) R=100 ±38° 三位置 -->
+  <path d="M 194 389 A 100 100 0 0 0 318 389" stroke="url(#w)" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <circle cx="194" cy="389" r="20" fill="#ffffff" opacity="0.4"/>
+  <circle cx="318" cy="389" r="20" fill="#ffffff" opacity="0.4"/>
+  <path fill="#ffffff" d="M256 92C194 92 142 138 142 210v72s-14 26-30 48c-10 14-2 30 16 30h256c18 0 26-16 16-30-16-22-30-48-30-48v-72c0-72-52-118-114-118z"/>
+  <circle cx="256" cy="410" r="28" fill="#ffffff"/>
 </svg>
