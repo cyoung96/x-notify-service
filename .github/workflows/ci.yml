@@ -1,6 +1,7 @@
-# CI:主分支只做测试检查(打包与发版只在 tag 流程,见 release.yml)
+# CI:主分支质量门禁
 # 门禁:clippy 最严格检查 → 单元 → HTTP/进程集成 → 系统通知兜底端到端(mock D-Bus)
 #       → Xvfb+Xfwm4 GUI 定位断言 → SDK 构建/语义测试
+#       → 三平台编译打包验证(缓存键与 release 一致,main 焐热缓存,发版直接命中)
 
 name: test
 
@@ -56,6 +57,56 @@ jobs:
       - run: dbus-run-session -- scripts/ci/test-fallback.sh
       - run: scripts/ci/test-gui.sh
       - run: cd sdk/js && pnpm -F @hexinfo/x-notify-service-sdk test
+
+  # 三平台编译打包验证:与 release 的构建 job 同键共享缓存,
+  # main 每次推送证明「可编可打包」,tag 发版直接命中热缓存
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-24.04
+          - name: linux-aarch64
+            os: ubuntu-24.04-arm
+          - name: windows
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 缓存键与 release.yml 各构建 job 完全一致(tag 回退取 main 缓存)
+      - if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: |
+            .ci-cache
+            target
+          key: ${{ matrix.name }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ matrix.name }}-cargo-
+      - if: runner.os == 'Windows'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+          shared-key: release-windows-msvc
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install -g pnpm@10
+      - if: runner.os == 'Windows'
+        run: choco install nsis -y --no-progress && echo "C:\Program Files (x86)\NSIS" >> $GITHUB_PATH
+        shell: bash
+      - if: runner.os == 'Linux'
+        run: ./scripts/pack-linux.sh ${{ matrix.name == 'linux-x86_64' && 'x86_64' || 'aarch64' }}
+      - if: runner.os == 'Windows'
+        run: bash scripts/pack-windows.sh x86_64-pc-windows-msvc
+        shell: bash
+      # Windows 产物冒烟:GUI 子系统经 AttachConsole 回显到本控制台
+      - if: runner.os == 'Windows'
+        run: |
+          ./target/x86_64-pc-windows-msvc/release/x-notify-service.exe --version
+          ./target/x86_64-pc-windows-msvc/release/x-notify-service.exe info | head -5
+        shell: bash
 
   # CodeQL 安全扫描(与 test 并行;安全标签页按 job 名识别,与独立工作流等效)
   analyze:
