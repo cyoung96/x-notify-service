@@ -57,8 +57,12 @@ fn main() {
         Some(config::Command::Start) => ctl::start(),
         Some(config::Command::Stop) => ctl::stop(),
         Some(config::Command::Restart) => ctl::restart(),
-        Some(config::Command::Notify { title, fallback }) => {
-            send::run(&cfg, title, fallback);
+        Some(config::Command::Notify {
+            title,
+            body,
+            fallback,
+        }) => {
+            send::run(&cfg, title, body, fallback);
         }
         Some(config::Command::Close) => send::close(),
     }
