@@ -59,7 +59,12 @@ if command -v xdotool >/dev/null 2>&1; then
             DY=$((WY - 580)); if [ $DY -lt 0 ]; then DY=$((-DY)); fi
             echo "弹窗实际位置: ($WX,$WY),期望: (899,580),偏差: (${DX},${DY})"
             echo "INFO: WM_CLASS=$(xprop -id "$WIN" WM_CLASS 2>/dev/null)"
-            echo "INFO: _NET_WM_ICON=$(xprop -id "$WIN" _NET_WM_ICON 2>/dev/null | head -c 60)"
+            ICONS_N=$(xprop -id "$WIN" _NET_WM_ICON 2>/dev/null | grep -o "Icon (" | wc -l | tr -d ' ')
+            if [ "$ICONS_N" -ge 3 ]; then
+                echo "PASS: 窗口图标多档($ICONS_N)"
+            else
+                echo "FAIL: 窗口图标应多档,实际 $ICONS_N"; xprop -id "$WIN" _NET_WM_ICON 2>/dev/null | head -3; exit 1
+            fi
             # 置顶态:无头 Xvfb 的 Xfwm4 不应答 EWMH 状态切换(手工 ClientMessage 亦失败),
             # 该环境无法证明置顶;真机 KWin/DDE 支持,留待实机验证。仅记录不断言
             echo "INFO: 置顶态(无头 WM 不可证): $(xprop -id "$WIN" _NET_WM_STATE 2>/dev/null | head -1)"
