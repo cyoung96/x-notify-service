@@ -1,7 +1,7 @@
 # x-notify-service
 
 跨平台消息通知服务:浏览器网页调用 → 屏幕右下角置顶弹窗(系统通知兜底)。
-面向 Windows / Linux(UOS、麒麟)交付,macOS 仅用于开发测试。是 dop-imgctls 老通知方案的现代化替代(绿色版、免提权、低内存)。
+面向 Windows / Linux(UOS、麒麟)交付,macOS 仅用于开发测试。
 
 ```
 ┌──────────┐  HTTP(127.0.0.1)  ┌─────────────────┐
@@ -27,9 +27,9 @@ x-notify-service notify -t "标题" -f                   # 同上,强制走系�
 x-notify-service close        # 关闭当前弹窗(幂等)
 ```
 
-- 全部注册均为**用户级**(Windows HKCU / macOS LaunchAgent / Linux XDG),无需管理员/root。
+- 全部注册均为**用户级**(Windows HKCU / Linux XDG autostart),无需管理员/root。
 - 单实例:重复启动静默退出;端口默认 `17320`,被占自动向后探测 10 个。
-- 日志:按天滚动保留 7 天;Linux `~/.local/state/x-notify-service/logs`、macOS `~/Library/Logs/x-notify-service`、Windows `%LOCALAPPDATA%\x-notify-service\logs`。
+- 日志:按天滚动保留 7 天;Linux `~/.local/state/x-notify-service/logs`、Windows `%LOCALAPPDATA%\x-notify-service\logs`。
 - 配置文件查找顺序:`--config` > 二进制同目录 `config.toml`(绿色版友好)> 用户配置目录(模板见 `scripts/templates/config.toml`)。
 
 ### HTTP API(127.0.0.1,无鉴权,CORS 全开)
@@ -44,34 +44,20 @@ OPTIONS      → 204(CORS 预检,Allow-Origin:* + Private-Network)
 
 正文 HTML 子集:`<b>/<strong>` 加粗、`<font color="…">/<span style="color:…">` 颜色、`<font size="16">/<span style="font-size:16px">` 字号(11~18,按行生效)、`<br>` 换行、HTML 实体;其余标签剥除保留内文,最多显示 5 行(超出截断加 …),行高为字号 ×1.6,行间 4px。弹窗常驻不超时:点击关闭或被新通知顶掉;同时只有一条,不堆叠。
 
-### 进程模型
-
-主线程 = Slint GUI 事件循环;1 个 HTTP 工作线程。无弹窗环境(无 DISPLAY / `--no-popup`)自动降级为系统通知(notify-rust),响应 `via:"system"`。
-
 ## JSSDK(sdk/js,pnpm workspace)
 
 ```ts
 import { createNotifyService } from '@hexinfo/x-notify-service-sdk'
 
-// 仅对需要通知能力的角色初始化(接入方条件接入)
-const bridge = createNotifyService()          // basePort=17320, portRange=10
-await bridge.discover()                       // 探测服务 → baseUrl | null
-
-// 静默失败语义:服务未安装/未运行时不拉起、不抛错,返回 { ok: false } 由业务自理
-const r = await bridge.notify({
-  title: '工单提醒',
-  body: '<font size="16"><b>紧急工单</b></font><br>张三提交了<font color="#d93025">紧急</font>归档申请',
-})
-if (!r.ok) { /* 页面内降级提示,或引导安装 */ }
-
-// 页面初始化时提前拉起服务(对接入角色),不等通知时刻才冷启动
-await bridge.start()                              // 幂等;未安装/超时静默返回 false
-await bridge.close()                              // 显式关闭当前弹窗(对应老系统 ClosePopup)
+const svc = createNotifyService()      // basePort=17320, portRange=10
+await svc.start()                      // 页面初始化提前拉起(幂等;未安装静默 false)
+const r = await svc.notify({ title: '工单提醒', body: '<b>紧急</b>工单<br>第二行' })
+// 静默失败:服务未装/未跑时 { ok: false },不拉起不抛错,由业务自理
 ```
 
-- 零依赖、纯 ESM、Vite lib 模式构建(ES2020 语法,esbuild 负责降级)。
-- 零预检:notify 不带 Content-Type(默认 text/plain),属 CORS 简单请求。
-- 发现策略:首次并发探测 `[17320, 17329]` 后缓存;`/health` 中 `app` 标识验明正身;仅请求失败才重新探测。
+- 零依赖、纯 ESM(ES2020);notify 不带 Content-Type,属 CORS 简单请求零预检。
+- 发现策略:并发探测 `[17320, 17329]` 后缓存,`/health` 的 `app` 字段验明正身。
+- 完整 API 与接入方式见发行包内 `sdk-使用手册.md`。
 
 开发:
 
@@ -88,7 +74,6 @@ scripts/pack-linux.sh    [arch]     # 正式:tar.xz 绿色版(bin+config+demo+sd
                                     # arch ∈ x86_64(默认) | aarch64 | all;
                                     # 一律在 Debian 10 容器内编译(glibc 2.28 地板,兼容 UOS 20/麒麟)
 scripts/pack-windows.sh  [target]   # 正式:NSIS setup.exe(per-user 免 UAC、可选目录、LZMA)
-scripts/pack-macos.sh              # 仅测试:.app bundle(验证 x-notify:// 协议拉起)
 ```
 
 - Linux 安装(全程普通用户权限):解压 tar.xz → `./install.sh` → 复制到 `~/.local/bin`、
