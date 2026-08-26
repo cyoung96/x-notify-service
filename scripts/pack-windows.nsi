@@ -41,6 +41,7 @@ Section "安装"
     File /nonfatal "${STAGE}\config.toml"
     File "${STAGE}\sdk.js"
     File "${STAGE}\demo.html"
+    File "${STAGE}\sdk-manual.md"
 
     WriteRegStr HKCU "Software\${APPNAME}" "InstallDir" "$INSTDIR"
 

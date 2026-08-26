@@ -16,7 +16,7 @@ sleep 1
 dbus-send --session --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames \
     | grep -q org.freedesktop.Notifications || { echo "mock 未占住总线名"; exit 1; }
 
-./target/release/x-notify-service --no-popup &
+./target/release/x-notify-service --no-popup serve &
 SVC_PID=$!
 trap 'kill $MOCK_PID $SVC_PID 2>/dev/null || true' EXIT
 
