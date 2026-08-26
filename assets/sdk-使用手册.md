@@ -9,9 +9,9 @@
 
 ## 2. 引入方式
 
-### 2.1 离线文件（随安装包）
+两种引入方式任选（均为纯 ESM，Chrome 61+ 原生支持）：
 
-把 `sdk.js` 与页面放在一起（或任意静态路径），以 ES Module 引入：
+**离线文件（随安装包）**——把 `sdk.js` 与页面放在一起（或任意静态路径）：
 
 ```html
 <script type="module">
@@ -22,14 +22,12 @@
 
 Linux 安装后文件位于 `~/.local/share/x-notify-service/`；Windows 在安装目录。
 
-### 2.2 npm 私服包
+**服务同源**——直接引用本机服务内嵌的 SDK（与本页同源）：
 
-```bash
-pnpm add @hexinfo/x-notify-service-sdk
-```
-
-```ts
-import { createNotifyService } from '@hexinfo/x-notify-service-sdk'
+```html
+<script type="module">
+  import { createNotifyService } from 'http://127.0.0.1:17320/sdk.js'
+</script>
 ```
 
 ## 3. 快速开始

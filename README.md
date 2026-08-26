@@ -52,7 +52,7 @@ POST /close  → {"ok":true}
 ## JSSDK
 
 ```ts
-import { createNotifyService } from '@hexinfo/x-notify-service-sdk'
+import { createNotifyService } from './sdk.js'
 
 const svc = createNotifyService()
 await svc.start()                      // 页面初始化提前拉起(幂等,未装静默 false)
