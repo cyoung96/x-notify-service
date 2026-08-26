@@ -28,7 +28,7 @@ pub fn work_area() -> Option<WorkArea> {
         SystemParametersInfoW(
             SPI_GETWORKAREA,
             0,
-            &mut rect as *mut RECT as *mut core::ffi::c_void,
+            std::ptr::from_mut(&mut rect).cast::<core::ffi::c_void>(),
             0,
         )
     };
@@ -36,10 +36,10 @@ pub fn work_area() -> Option<WorkArea> {
         return None;
     }
     Some(WorkArea {
-        x: rect.left as f64,
-        y: rect.top as f64,
-        w: (rect.right - rect.left) as f64,
-        h: (rect.bottom - rect.top) as f64,
+        x: f64::from(rect.left),
+        y: f64::from(rect.top),
+        w: f64::from(rect.right - rect.left),
+        h: f64::from(rect.bottom - rect.top),
         scale: 1.0,
     })
 }

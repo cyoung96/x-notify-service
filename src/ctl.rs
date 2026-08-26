@@ -102,7 +102,7 @@ pub fn start_detached() {
     cmd.arg("serve");
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
+        use std::os::windows::process::CommandExt as _;
         // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP:无控制台窗口、独立进程组
         cmd.creation_flags(0x0000_0008 | 0x0000_0200);
     }

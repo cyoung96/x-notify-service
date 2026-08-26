@@ -37,8 +37,6 @@ SDK 侧 `createNotifyService({ token: 'xxx' })` 同步配置;`info` 可查看生
 
 ## HTTP API(127.0.0.1)
 
-服务内嵌演示页与 SDK:装完浏览器打开 `http://127.0.0.1:17320/` 即测,无需找文件。
-
 ```
 GET  /            → 演示页(内嵌)
 GET  /sdk.js      → SDK 产物(内嵌,演示页同源引用)

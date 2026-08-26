@@ -41,7 +41,7 @@ pub use slint_generated::*;
 /// 挂接失败,保持静默,不影响服务运行。
 #[cfg(windows)]
 // 取屏 FFI 同款豁免:仅此一处 Win32 控制台挂接
-#[allow(unsafe_code)]
+#[allow(unsafe_code, clippy::multiple_unsafe_ops_per_block)]
 fn attach_parent_console() {
     use windows_sys::Win32::Foundation::{GENERIC_WRITE, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::Storage::FileSystem::{CreateFileW, FILE_SHARE_WRITE, OPEN_EXISTING};
@@ -72,7 +72,7 @@ fn attach_parent_console() {
 }
 
 #[cfg(not(windows))]
-fn attach_parent_console() {}
+const fn attach_parent_console() {}
 
 fn main() {
     attach_parent_console();
