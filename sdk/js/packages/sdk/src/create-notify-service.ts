@@ -1,5 +1,5 @@
 import { APP_ID, DEFAULT_BASE_PORT, DEFAULT_PORT_RANGE, PROTOCOL_URL } from './constants'
-import type { NoticeBridge, NoticeBridgeOptions, NotifyOptions, NotifyResult } from './types'
+import type { NotifyOptions, NotifyResult, NotifyService, NotifyServiceOptions } from './types'
 
 interface HealthBody {
   readonly app?: unknown
@@ -18,7 +18,7 @@ function sleep(ms: number): Promise<void> {
   })
 }
 
-export function createNoticeBridge(options: NoticeBridgeOptions = {}): NoticeBridge {
+export function createNotifyService(options: NotifyServiceOptions = {}): NotifyService {
   const basePort = options.basePort ?? DEFAULT_BASE_PORT
   const portRange = options.portRange ?? DEFAULT_PORT_RANGE
   const requestTimeoutMs = options.requestTimeoutMs ?? 3000

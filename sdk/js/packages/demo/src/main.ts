@@ -1,6 +1,6 @@
-import { createNoticeBridge } from '@hexinfo/x-notify-service-sdk'
+import { createNotifyService } from '@hexinfo/x-notify-service-sdk'
 
-const bridge = createNoticeBridge()
+const bridge = createNotifyService()
 
 const $ = (id: string): HTMLElement => {
   const el = document.getElementById(id)

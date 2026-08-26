@@ -1,7 +1,7 @@
 /** 实际展示渠道:popup=右下角置顶弹窗,system=系统通知兜底 */
 export type NotifyVia = 'popup' | 'system'
 
-export interface NoticeBridgeOptions {
+export interface NotifyServiceOptions {
   /** 端口探测起始值,须与服务端配置一致,默认 17320 */
   readonly basePort?: number
   /** 探测端口个数,须与服务端配置一致,默认 10 */
@@ -23,7 +23,7 @@ export interface NotifyResult {
   readonly via?: NotifyVia
 }
 
-export interface NoticeBridge {
+export interface NotifyService {
   /** 在端口区间内探测服务;返回 baseUrl(如 http://127.0.0.1:17321)或 null */
   discover(force?: boolean): Promise<string | null>
   /** 提前拉起服务:页面初始化时对接入角色调用,避免通知时刻才冷启动;
