@@ -74,15 +74,20 @@ jobs:
             os: windows-latest
     steps:
       - uses: actions/checkout@v4
-      # 缓存键与 release.yml 各构建 job 完全一致(tag 回退取 main 缓存)
+      # 缓存键与 release.yml 各构建 job 完全一致(tag 回退取 main 缓存);
+      # .ci-cache 与 target 拆开存(合并会因一方 tar 失败连坐全丢)
       - if: runner.os == 'Linux'
         uses: actions/cache@v4
         with:
-          path: |
-            .ci-cache
-            target
+          path: .ci-cache
           key: ${{ matrix.name }}-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ matrix.name }}-cargo-
+      - if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: target/${{ matrix.name == 'linux-x86_64' && 'x86_64' || 'aarch64' }}
+          key: ${{ matrix.name }}-target-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ matrix.name }}-target-
       - if: runner.os == 'Windows'
         uses: Swatinem/rust-cache@v2
         with:
