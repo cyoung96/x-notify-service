@@ -113,8 +113,9 @@ jobs:
             -R "$GITHUB_REPOSITORY" \
               dist/*.tar.xz dist/*.exe
           else
-            gh release upload "$TAG" dist/*.tar.xz dist/*.exe --clobber
+            gh release upload "$TAG" dist/*.tar.xz dist/*.exe --clobber -R "$GITHUB_REPOSITORY"
           fi
-          gh release edit "$TAG" --draft=false
+          # -R 必带:本 job 无 checkout,gh 回退用 git 查仓库必失败
+          gh release edit "$TAG" --draft=false -R "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ github.token }}
