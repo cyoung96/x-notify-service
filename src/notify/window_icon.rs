@@ -104,22 +104,51 @@ mod imp {
         else {
             return;
         };
-        // data_length 在 format=32 时是 32 位元素个数(非字节数),
-        // 传错会触发 x11rb 客户端断言 panic(UOS 真机闪退根因)
-        let Ok(units) = u32::try_from(blob.len() / 4) else {
-            return;
-        };
         let _ = conn.change_property(
             x11rb::protocol::xproto::PropMode::REPLACE,
             wid,
             atom,
             x11rb::protocol::xproto::AtomEnum::CARDINAL,
             32,
-            units,
+            property_units(blob),
             blob,
         );
         let _ = conn.flush();
         log::debug!("已写入多档窗口图标");
+    }
+
+    /// format=32 时 data_length 是 32 位元素个数(非字节数);
+    /// 传字节长会触发 x11rb 客户端断言 panic(UOS 闪退根因,回归测试钉死)
+    fn property_units(blob: &[u8]) -> u32 {
+        u32::try_from(blob.len() / 4).unwrap_or(u32::MAX)
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::imp::{property_units, ICON_BLOB};
+
+    /// 闪退根因回归:79904 字节必须是 19976 个元素,而不是 79904
+    #[test]
+    fn 属性长度按元素数计算() {
+        assert_eq!(property_units(&[0u8; 79_904]), 19_976);
+    }
+
+    /// 构建期生成的负载可整除且恰含四档图标(128/48/32/16)
+    #[test]
+    fn 图标负载结构合法() {
+        assert_eq!(ICON_BLOB.len() % 4, 0, "负载须为 u32 流");
+        let le = |o: usize| u32::from_le_bytes(ICON_BLOB[o..o + 4].try_into().unwrap());
+        let mut off = 0;
+        let mut sizes = Vec::new();
+        while off < ICON_BLOB.len() {
+            let (w, h) = (le(off) as usize, le(off + 4) as usize);
+            sizes.push(w);
+            assert_eq!(w, h, "图标须为正方形");
+            off += 8 + w * h * 4;
+        }
+        assert_eq!(off, ICON_BLOB.len(), "负载无尾部残渣");
+        assert_eq!(sizes, vec![128, 48, 32, 16], "四档按偏好序");
     }
 }
 
