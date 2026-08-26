@@ -87,14 +87,7 @@ pub fn work_area() -> Option<WorkArea> {
             .ok()?
             .reply()
             .ok()?;
-        let v = &reply.value;
-        if v.len() < 16 {
-            return None;
-        }
-        let u = |i: usize| {
-            u32::from_ne_bytes([v[i], v[i + 1], v[i + 2], v[i + 3]]) as f64
-        };
-        Some((u(0), u(1), u(2), u(3)))
+        parse_workarea(&reply.value)
     })();
     match wa {
         Some((x, y, w, h)) => Some(WorkArea { x, y, w, h, scale: 1.0 }),
@@ -102,5 +95,46 @@ pub fn work_area() -> Option<WorkArea> {
             log::info!("WM 未提供 _NET_WORKAREA(精简桌面?),退回全屏尺寸定位");
             Some(full)
         }
+    }
+}
+
+/// 解析 _NET_WORKAREA 属性字节:CARDINAL 数组,取第一个桌面 x/y/w/h
+/// (字节偏移 0/4/8/12);宽高为 0 视为无效,由调用方退回全屏
+#[cfg(target_os = "linux")]
+fn parse_workarea(v: &[u8]) -> Option<(f64, f64, f64, f64)> {
+    if v.len() < 16 {
+        return None;
+    }
+    let u32at = |i: usize| u32::from_ne_bytes([v[i], v[i + 1], v[i + 2], v[i + 3]]) as f64;
+    let (x, y, w, h) = (u32at(0), u32at(4), u32at(8), u32at(12));
+    (w > 0.0 && h > 0.0).then_some((x, y, w, h))
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn 取第一个桌面工作区() {
+        let mut v = vec![0u8; 16];
+        v[8..12].copy_from_slice(&1512u32.to_ne_bytes());
+        v[12..16].copy_from_slice(&907u32.to_ne_bytes());
+        assert_eq!(parse_workarea(&v), Some((0.0, 0.0, 1512.0, 907.0)));
+    }
+
+    #[test]
+    fn 非零原点按四字节步进() {
+        let mut v = vec![0u8; 16];
+        v[0..4].copy_from_slice(&10u32.to_ne_bytes());
+        v[4..8].copy_from_slice(&20u32.to_ne_bytes());
+        v[8..12].copy_from_slice(&1000u32.to_ne_bytes());
+        v[12..16].copy_from_slice(&600u32.to_ne_bytes());
+        assert_eq!(parse_workarea(&v), Some((10.0, 20.0, 1000.0, 600.0)));
+    }
+
+    #[test]
+    fn 全零或长度不足视为无效() {
+        assert_eq!(parse_workarea(&[0u8; 16]), None);
+        assert_eq!(parse_workarea(&[0u8; 8]), None);
     }
 }
