@@ -44,7 +44,7 @@ if [ -d "$SRC_DIR/icons" ]; then
     # 刷新用户级图标缓存,确保 desktop 文件的 Icon= 能被解析(DDE 任务栏走此链)
     gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 fi
-# SDK 与手册放置到用户数据目录(演示页由服务内嵌提供)
+# SDK 与手册放置到用户数据目录
 mkdir -p "$HOME/.local/share/x-notify-service"
 cp "$SRC_DIR/sdk.js" "$SRC_DIR/sdk-使用手册.md" "$HOME/.local/share/x-notify-service/"
 
