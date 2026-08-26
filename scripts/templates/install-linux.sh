@@ -33,9 +33,9 @@ if [ ! -f "$CONF_DIR/config.toml" ]; then
     echo "已生成配置: $CONF_DIR/config.toml"
 fi
 
-# 图标安装到用户级 hicolor(供 desktop 文件引用)
-if [ -d "$SRC_DIR/icons/hicolor" ]; then
-    for png in "$SRC_DIR"/icons/hicolor/x-notify-service-*.png; do
+# 图标安装到用户级 hicolor(供 desktop 文件引用;包内平铺于 icons/)
+if [ -d "$SRC_DIR/icons" ]; then
+    for png in "$SRC_DIR"/icons/x-notify-service-*.png; do
         [ -f "$png" ] || continue
         size="$(basename "$png" .png | sed 's/.*-//')"
         mkdir -p "$HOME/.local/share/icons/hicolor/${size}x${size}/apps"
