@@ -117,5 +117,4 @@ fn serve(cfg: &config::Config) {
     if let Err(e) = slint::run_event_loop_until_quit() {
         log::error!("事件循环异常退出: {e}");
     }
-    // 返回 main 自然退出(code 0)
 }

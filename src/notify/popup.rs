@@ -15,8 +15,7 @@ static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 struct Entry {
     id: u64,
     popup: PopupWindow,
-    // 显示后的位置复校定时器:部分 WM(Xfwm4 等)会把新映射窗口重摆到默认位置,
-    // 多次延迟复校可抢回;Entry 移除时定时器随之下线
+    // 显示后位置复校定时器(机制见 fixup_timers);Entry 移除时随之失效
     _fixups: Vec<slint::Timer>,
     /// 弹窗关闭后退出事件循环(notify 子命令单发进程用;服务模式恒 false)
     quit_on_close: bool,

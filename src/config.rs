@@ -59,7 +59,7 @@ pub enum Command {
     Stop,
     /// 重启服务(未运行则等效于 start)
     Restart,
-    /// 本机发一条标题通知(不经 HTTP,安装前手测用)
+    /// 本机发一条通知(服务在跑走其 HTTP 通道;否则本进程弹窗)
     Notify {
         /// 通知标题
         #[arg(short = 't', long = "title")]

@@ -138,7 +138,7 @@ fn read_tag(chars: &[char], from: usize) -> (String, String, bool, usize) {
         j += 1;
     }
     if j < chars.len() {
-        j += 1; // 跳过 '>'
+        j += 1;
     }
     (name, attrs, closing, j)
 }

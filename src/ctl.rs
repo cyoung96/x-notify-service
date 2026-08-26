@@ -92,7 +92,7 @@ fn recorded_ours() -> Option<(u16, Probe)> {
     matches!(probe, Probe::Ours { .. }).then_some((rec.port, probe))
 }
 
-/// 分离启动服务进程(重新拉起自身,无参数 = 服务模式);install 完成时同样走这里
+/// 分离启动服务进程(以 serve 子命令重新拉起自身);install 完成时同样走这里
 pub fn start_detached() {
     let Ok(exe) = std::env::current_exe() else {
         log::warn!("无法定位自身路径,跳过后台启动");
