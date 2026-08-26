@@ -10,7 +10,10 @@ export component PopupWindow inherits Window {
     // title 仅作 WM/任务栏/测试识别用,无框窗口不显示标题
     title: "x-notify-service";
     no-frame: true;
-    always-on-top: true;
+    // 置顶在 Rust 侧 show 之后再置位:winit 的 X11 实现经 ClientMessage 请求 WM
+    // 改状态,映射前发送会被 WM 丢弃(EWMH 语义),故初始 false、显示后翻 true
+    always-on-top: raise-above;
+    in property <bool> raise-above: false;
     background: #ffffff;
     icon: @image-url("../assets/icons/icon-32.png");
     width: 367px;
