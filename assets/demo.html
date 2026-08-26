@@ -40,7 +40,9 @@
     <script type="module">
       import { createNotifyService } from './sdk.js'
 
-      const svc = createNotifyService()
+      const port = Number(location.port)
+      const onService = location.hostname === '127.0.0.1' && port >= 17320 && port <= 17329
+      const svc = createNotifyService(onService ? { baseUrl: location.origin } : {})
       const log = (msg) => {
         const t = new Date().toTimeString().slice(0, 8)
         document.getElementById('log').textContent += `[${t}] ${msg}\n`

@@ -45,6 +45,7 @@ export function createNotifyService(options: NotifyServiceOptions = {}): NotifyS
   const portRange = options.portRange ?? DEFAULT_PORT_RANGE
   const requestTimeoutMs = options.requestTimeoutMs ?? 3000
   const authHeaders = options.token === undefined ? {} : { 'X-Token': options.token }
+  const knownBase = options.baseUrl?.replace(/\/$/, '') ?? null
 
   let cachedBaseUrl: string | null = null
   let discovering: Promise<string | null> | null = null
@@ -74,9 +75,13 @@ export function createNotifyService(options: NotifyServiceOptions = {}): NotifyS
     })
   }
 
-  /** 并发探测端口区间,取端口号最小的命中项 */
+  /** 已知地址直连校验;否则并发探测端口区间,取端口号最小的命中项 */
   async function discover(force = false): Promise<string | null> {
     if (!force && cachedBaseUrl) {
+      return cachedBaseUrl
+    }
+    if (knownBase !== null) {
+      cachedBaseUrl = (await fetchHealth(knownBase, 300)) !== null ? knownBase : null
       return cachedBaseUrl
     }
     if (discovering) {
