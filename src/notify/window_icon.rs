@@ -119,7 +119,7 @@ mod imp {
 
     /// format=32 时 data_length 是 32 位元素个数(非字节数);
     /// 传字节长会触发 x11rb 客户端断言 panic(UOS 闪退根因,回归测试钉死)
-    fn property_units(blob: &[u8]) -> u32 {
+    pub(super) fn property_units(blob: &[u8]) -> u32 {
         u32::try_from(blob.len() / 4).unwrap_or(u32::MAX)
     }
 }
