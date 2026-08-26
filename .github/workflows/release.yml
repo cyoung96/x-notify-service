@@ -28,11 +28,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
-          # target/ 一并入缓存:容器环境恒定,编译产物跨次可复用(此前只缓存
-          # 注册表导致每次全量重编);rustc 升级时 cargo 按指纹增量重编
-          path: |
-            .ci-cache
-            target
+          # 仅缓存 cargo home(注册表+工具链);target/ 曾纳入但 save 时容器
+          # 仍持锁导致 tar 失败、连 .ci-cache 一起丢——拆开独存
+          path: .ci-cache
           key: linux-x86_64-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: linux-x86_64-cargo-
       - uses: actions/setup-node@v4
