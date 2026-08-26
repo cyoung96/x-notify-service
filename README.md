@@ -22,7 +22,7 @@ x-notify-service close        # 关闭当前弹窗
 ```
 
 - 用户级注册,免 root/管理员;单实例,端口 `17320` 起向后探测 10 个。
-- 日志按天滚动保留 7 天(Linux `~/.local/state/x-notify-service/logs`,Windows `%LOCALAPPDATA%\x-notify-service\logs`)。
+- 日志按天滚动保留 3 天(Linux `~/.local/state/x-notify-service/logs`,Windows `%LOCALAPPDATA%\x-notify-service\logs`)。
 - 配置:`--config` > 二进制同目录 `config.toml` > 用户配置目录;模板见 `scripts/templates/config.toml`。
 
 ### 安全参数(不配置 = 全开放无鉴权)

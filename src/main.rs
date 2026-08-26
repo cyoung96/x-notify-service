@@ -78,7 +78,13 @@ fn main() {
     attach_parent_console();
     let cli = config::Cli::parse();
     let cfg = config::resolve(&cli);
-    let _logger = logging::init(&cfg);
+    // 文件日志仅服务进程需要;一次性 CLI 命令不建文件(避免空日志),输出走终端
+    let serve_mode = match &cli.cmd {
+        None => cli.url_arg.is_some(),
+        Some(config::Command::Serve) => true,
+        Some(_) => false,
+    };
+    let _logger = serve_mode.then(|| logging::init(&cfg));
 
     match cli.cmd {
         // 无参数:显示帮助;协议拉起(url 参数)时仍直接进入服务(单例语义)
