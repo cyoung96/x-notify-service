@@ -1,103 +1,72 @@
 # x-notify-service
 
-跨平台消息通知服务:浏览器网页调用 → 屏幕右下角置顶弹窗(系统通知兜底)。
-面向 Windows / Linux(UOS、麒麟)交付,macOS 仅用于开发测试。
+浏览器网页调用 → 屏幕右下角置顶弹窗(系统通知兜底)。Windows / Linux(UOS、麒麟)。
 
 ```
 ┌──────────┐  HTTP(127.0.0.1)  ┌─────────────────┐
-│ 业务页面  │ ───────────────→ │ x-notify-service │──→ 右下角置顶弹窗(Slint 软件渲染)
-│ JSSDK    │ ←── /health 验身 └─────────────────┘└─→ 系统通知兜底(弹窗不可用时)
+│ 业务页面  │ ───────────────→ │ x-notify-service │──→ 右下角置顶弹窗
+│ JSSDK    │ ←── /health 验身 └─────────────────┘└─→ 系统通知(弹窗不可用时)
 └──────────┘        服务不在线 → x-notify:// 协议拉起
 ```
 
-## 服务端(Rust)
-
-### 运行与安装
+## CLI
 
 ```
-x-notify-service              # 无参数:显示帮助
-x-notify-service serve        # 运行服务本体(常驻进程;开机自启与 start 拉起使用)
-x-notify-service install      # 注册开机自启 + x-notify:// 协议,并启动服务
-x-notify-service uninstall    # 清理全部注册项
-x-notify-service info         # 诊断快照:实例/端口/显示环境/工作区/注册状态(只读)
-x-notify-service start|stop|restart   # 服务生命周期(幂等;stop 经端口文件 pid + 身份校验)
-x-notify-service notify -t "标题"                      # 本机手测一条通知(服务在跑走其 HTTP 通道,否则本进程弹窗)
-x-notify-service notify -t "标题" -b "<b>正文</b><br>第二行"   # 正文支持 HTML 子集(加粗/颜色/字号/br)
-x-notify-service notify -t "标题" -f                   # 同上,强制走系统通知兜底(正文自动剥为纯文本)
-x-notify-service close        # 关闭当前弹窗(幂等)
+x-notify-service              # 无参数:帮助
+x-notify-service serve        # 运行服务(常驻进程)
+x-notify-service install      # 注册自启 + 协议,并启动;uninstall 反向清理
+x-notify-service start|stop|restart   # 生命周期(幂等)
+x-notify-service info         # 诊断:实例/端口/工作区/落点/注册状态/安全配置
+x-notify-service notify -t "标题" [-b "<b>正文</b>"] [-f]   # 手测通知;-f 走系统通知
+x-notify-service close        # 关闭当前弹窗
 ```
 
-- 全部注册均为**用户级**(Windows HKCU / Linux XDG autostart),无需管理员/root。
-- 单实例:重复启动静默退出;端口默认 `17320`,被占自动向后探测 10 个。
-- 日志:按天滚动保留 7 天;Linux `~/.local/state/x-notify-service/logs`、Windows `%LOCALAPPDATA%\x-notify-service\logs`。
-- 安全参数(全部可选,不配置 = 默认最简:全开放、无鉴权):
-  `cors_origins = ["http://oa.example.com"]` 收紧跨域白名单(默认 `["*"]`);
-  `token = "xxx"` 启用访问令牌,/notify 与 /close 需带 `X-Token` 头,SDK 侧 `createNotifyService({ token })` 同步配置;
-  `allow_private_network = false` 可关闭本地网络预检应答。`info` 子命令可查看当前生效值。
-- 配置文件查找顺序:`--config` > 二进制同目录 `config.toml`(绿色版友好)> 用户配置目录(模板见 `scripts/templates/config.toml`)。
+- 用户级注册,免 root/管理员;单实例,端口 `17320` 起向后探测 10 个。
+- 日志按天滚动保留 7 天(Linux `~/.local/state/x-notify-service/logs`,Windows `%LOCALAPPDATA%\x-notify-service\logs`)。
+- 配置:`--config` > 二进制同目录 `config.toml` > 用户配置目录;模板见 `scripts/templates/config.toml`。
 
-### HTTP API(127.0.0.1,无鉴权,CORS 全开)
+### 安全参数(不配置 = 全开放无鉴权)
 
-```
-GET  /health → {"app":"x-notify-service","version":"0.1.0","port":17320}
-POST /notify → {"ok":true,"via":"popup"|"system"}
-     body: {"title":"必填,≤200字", "body":"可选,≤2000字,HTML子集"}
-POST /close  → {"ok":true}(关闭当前弹窗,幂等)
-OPTIONS      → 204(CORS 预检,Allow-Origin:* + Private-Network)
+```toml
+cors_origins = ["http://oa.example.com"]   # CORS 白名单;默认 ["*"]
+token = "xxx"                              # /notify //close 需 X-Token 头;默认无鉴权
+allow_private_network = false              # 关闭本地网络预检应答;默认 true
 ```
 
-正文 HTML 子集:`<b>/<strong>` 加粗、`<font color="…">/<span style="color:…">` 颜色、`<font size="16">/<span style="font-size:16px">` 字号(11~18,按行生效)、`<br>` 换行、HTML 实体;其余标签剥除保留内文,最多显示 5 行(超出截断加 …),行高为字号 ×1.6,行间 4px。弹窗常驻不超时:点击关闭或被新通知顶掉;同时只有一条,不堆叠。
+SDK 侧 `createNotifyService({ token: 'xxx' })` 同步配置;`info` 可查看生效值。
 
-## JSSDK(sdk/js,pnpm workspace)
+## HTTP API(127.0.0.1)
+
+```
+GET  /health → {"app":"x-notify-service","version":"…","port":17320}
+POST /notify → {"ok":true,"via":"popup"|"system"}   body: {"title":"≤200字", "body":"≤2000字,HTML子集"}
+POST /close  → {"ok":true}
+```
+
+正文 HTML 子集:`<b>`、颜色、字号(11~18,按行)、`<br>`、实体;其余剥除,最多 5 行截断加 …。弹窗常驻不超时,新通知顶掉旧的(不堆叠)。
+
+## JSSDK
 
 ```ts
 import { createNotifyService } from '@hexinfo/x-notify-service-sdk'
 
-const svc = createNotifyService()      // basePort=17320, portRange=10
-await svc.start()                      // 页面初始化提前拉起(幂等;未安装静默 false)
-const r = await svc.notify({ title: '工单提醒', body: '<b>紧急</b>工单<br>第二行' })
-// 静默失败:服务未装/未跑时 { ok: false },不拉起不抛错,由业务自理
+const svc = createNotifyService()      // 可选 { token } 与服务端鉴权匹配
+await svc.start()                      // 页面初始化提前拉起(幂等,未装静默 false)
+await svc.notify({ title: '工单提醒', body: '<b>紧急</b>工单<br>第二行' })
+// 服务未装/未跑时返回 { ok: false },不拉起不抛错
 ```
 
-- 零依赖、纯 ESM(ES2020);notify 不带 Content-Type,属 CORS 简单请求零预检。
-- 发现策略:并发探测 `[17320, 17329]` 后缓存,`/health` 的 `app` 字段验明正身。
-- 完整 API 与接入方式见发行包内 `sdk-使用手册.md`。
+纯 ESM、零依赖;完整 API 见发行包内 `sdk-使用手册.md`。开发:`cd sdk/js && pnpm install && pnpm build`,演示页 `pnpm demo`。
 
-开发:
+## 打包与发布
 
-```
-cd sdk/js
-pnpm install && pnpm build && pnpm lint && pnpm typecheck
-pnpm demo        # 演示页 http://localhost:8086
-```
-
-## 打包(同构脚本)
-
-```
-scripts/pack-linux.sh    [arch]     # 正式:tar.xz 绿色版(bin+config+demo+sdk+手册+install.sh+图标)
-                                    # arch ∈ x86_64(默认) | aarch64 | all;
-                                    # 一律在 Debian 10 容器内编译(glibc 2.28 地板,兼容 UOS 20/麒麟)
-scripts/pack-windows.sh  [target]   # 正式:NSIS setup.exe(per-user 免 UAC、可选目录、LZMA)
-```
-
-- Linux 安装(全程普通用户权限):解压 tar.xz → `./install.sh` → 复制到 `~/.local/bin`、
-  图标到 `~/.local/share/icons`、演示页、SDK 与使用手册到 `~/.local/share/x-notify-service/`,
-  并调用 `x-notify-service install` 完成用户级注册(自启动 + 协议)+ 分离启动服务。
-- Windows 安装:双击 setup.exe → 选目录 → 安装末尾静默注册并启动服务。
-
-## 版本发布(CI)
-
-- 推 `main`:仅跑测试检查(clippy/单测/集成/GUI 定位断言/SDK),不打包不发版
-- 打 `v*` 标签(如 `v0.1.0`):三平台打包并发布到 GitHub Releases
-  (Linux 在 Debian 10 容器编译,glibc 2.28 地板;脚本自带 GLIBC 断言)
-
-```
-git tag v0.1.0 && git push origin v0.1.0   # 正式发版
-```
+- `scripts/pack-linux.sh [x86_64|aarch64]`:tar.xz 绿色版(Debian 10 容器编译,glibc 2.28 地板,兼容 UOS 20/麒麟)
+- `scripts/pack-windows.sh`:NSIS setup.exe(per-user 免 UAC)
+- 安装:Linux 解压后 `./install.sh`(免 root);Windows 双击 setup.exe
+- 发版:推 `main` 只跑测试;`git tag v0.1.0 && git push origin v0.1.0` 触发打包发布 Release
 
 ## 已知限制
 
-- Wayland 会话下弹窗无法自定位右下角,自动走系统通知兜底(X11 正常)
-- macOS 协议拉起依赖 .app bundle(非正式交付平台)
-- Windows 兜底系统通知来源默认显示为 PowerShell(AppId 机制),`--app-id` 可自定义
-- 富文本正文不支持表格/图片/复杂 CSS(设计取舍:零依赖、低内存)
+- Wayland 会话弹窗无法自定位,自动走系统通知(X11 正常)
+- Windows 兜底系统通知来源默认显示为 PowerShell,`--app-id` 可自定义
+- 正文不支持表格/图片/复杂 CSS(设计取舍)
