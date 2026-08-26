@@ -30,15 +30,21 @@ pub(super) fn set() {
         return;
     };
     let root = conn.setup().roots[screen_num].root;
-    // 客户端窗口清单走 EWMH _NET_CLIENT_LIST:WM 会把窗口重挂进自己的框架,
-    // root 直接子窗口是框架而非本窗,遍历树必落空
+    if let Some(wid) = find_window(&conn, root) {
+        write_icons(&conn, wid, &data);
+    }
+}
+
+/// 定位本服务窗口:EWMH 客户端清单优先;精简 WM 不维护清单时递归全树兜底
+/// (WM 会把客户端收进框架窗,须深入子树查找)
+fn find_window(conn: &x11rb::rust_connection::RustConnection, root: u32) -> Option<u32> {
     let list_atom = conn
         .intern_atom(false, b"_NET_CLIENT_LIST")
         .ok()
         .and_then(|c| c.reply().ok())
-        .map(|a| a.atom);
-    let Some(list_atom) = list_atom else { return };
-    let clients = conn
+        .map(|a| a.atom)?;
+    // 清单路径
+    if let Some(reply) = conn
         .get_property(
             false,
             root,
@@ -48,55 +54,66 @@ pub(super) fn set() {
             1024,
         )
         .ok()
-        .and_then(|c| c.reply().ok());
-    let Some(clients) = clients else { return };
-    // X11 线序为小端
-    let (words, _) = clients.value.as_chunks::<4>();
-    let ids: Vec<u32> = words.iter().map(|c| u32::from_le_bytes(*c)).collect();
-    for wid in ids {
-        if window_matches(&conn, wid) {
-            let atom = conn
-                .intern_atom(false, b"_NET_WM_ICON")
-                .ok()
-                .and_then(|c| c.reply().ok())
-                .map(|a| a.atom);
-            let Some(atom) = atom else { return };
-            let bytes: Vec<u8> = data.iter().copied().flat_map(u32::to_ne_bytes).collect();
-            let Ok(len) = u32::try_from(bytes.len()) else {
-                return;
-            };
-            let _ = conn.change_property(
-                x11rb::protocol::xproto::PropMode::REPLACE,
-                wid,
-                atom,
-                x11rb::protocol::xproto::AtomEnum::CARDINAL,
-                32,
-                len,
-                &bytes,
-            );
-            let _ = conn.flush();
-            log::debug!("已写入多档窗口图标({} 档)", ICONS.len());
-            return;
+        .and_then(|c| c.reply().ok())
+    {
+        // X11 线序为小端
+        let (words, _) = reply.value.as_chunks::<4>();
+        let ids = words.iter().map(|c| u32::from_le_bytes(*c));
+        for wid in ids {
+            if window_matches(conn, wid) {
+                return Some(wid);
+            }
         }
     }
+    dfs_find(conn, root, 0)
 }
 
-/// 解码内嵌 PNG 为宽高与 ARGB 像素
-#[cfg(target_os = "linux")]
-fn decode_rgba(bytes: &[u8]) -> Option<(u32, u32, Vec<u32>)> {
-    let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
-    let mut reader = decoder.read_info().ok()?;
-    let mut buf = vec![0u8; reader.output_buffer_size()];
-    let info = reader.next_frame(&mut buf).ok()?;
-    let (chunks, _) = buf.as_chunks::<4>();
-    let argb = chunks
-        .iter()
-        .map(|px| {
-            let [r, g, b, a] = *px;
-            (u32::from(a) << 24) | (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
-        })
-        .collect();
-    Some((info.width.min(512), info.height.min(512), argb))
+fn dfs_find(conn: &x11rb::rust_connection::RustConnection, wid: u32, depth: u8) -> Option<u32> {
+    if depth > 8 {
+        return None;
+    }
+    if window_matches(conn, wid) {
+        return Some(wid);
+    }
+    let children = conn
+        .query_tree(wid)
+        .ok()
+        .and_then(|c| c.reply().ok())
+        .map(|r| r.children);
+    for child in children.into_iter().flatten() {
+        if let Some(hit) = dfs_find(conn, child, depth + 1) {
+            return Some(hit);
+        }
+    }
+    None
+}
+
+/// 写入多档图标属性
+fn write_icons(conn: &x11rb::rust_connection::RustConnection, wid: u32, data: &[u32]) {
+    use x11rb::protocol::xproto::ConnectionExt as _;
+    let Some(atom) = conn
+        .intern_atom(false, b"_NET_WM_ICON")
+        .ok()
+        .and_then(|c| c.reply().ok())
+        .map(|a| a.atom)
+    else {
+        return;
+    };
+    let bytes: Vec<u8> = data.iter().copied().flat_map(u32::to_ne_bytes).collect();
+    let Ok(len) = u32::try_from(bytes.len()) else {
+        return;
+    };
+    let _ = conn.change_property(
+        x11rb::protocol::xproto::PropMode::REPLACE,
+        wid,
+        atom,
+        x11rb::protocol::xproto::AtomEnum::CARDINAL,
+        32,
+        len,
+        &bytes,
+    );
+    let _ = conn.flush();
+    log::debug!("已写入多档窗口图标");
 }
 
 /// 按窗口名识别本服务窗口:winit 设置的名称属性类型不定,两种都查

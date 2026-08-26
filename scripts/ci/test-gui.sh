@@ -58,6 +58,7 @@ if command -v xdotool >/dev/null 2>&1; then
             DX=$((WX - 899)); if [ $DX -lt 0 ]; then DX=$((-DX)); fi
             DY=$((WY - 580)); if [ $DY -lt 0 ]; then DY=$((-DY)); fi
             echo "弹窗实际位置: ($WX,$WY),期望: (899,580),偏差: (${DX},${DY})"
+            echo "INFO: _NET_CLIENT_LIST=$(xprop -root _NET_CLIENT_LIST 2>/dev/null | head -c 90)"
             echo "INFO: WM_CLASS=$(xprop -id "$WIN" WM_CLASS 2>/dev/null)"
             ICONS_N=$(xprop -id "$WIN" _NET_WM_ICON 2>/dev/null | grep -o "Icon (" | wc -l | tr -d ' ')
             if [ "$ICONS_N" -ge 3 ]; then
