@@ -63,6 +63,7 @@ fn display(cfg: &config::Config) {
     }
     if !notify::popup::gui_probe() {
         println!("GUI 探测: 不可用(弹窗无法创建,通知将走系统通知兜底)");
+        println!("工作区:   未探测(弹窗不可用,无需工作区)");
         return;
     }
     println!("GUI 探测: 可用(弹窗窗口可创建)");
