@@ -9,9 +9,7 @@
 
 ## 2. 引入方式
 
-两种引入方式任选（均为纯 ESM，Chrome 61+ 原生支持）：
-
-**离线文件（随安装包）**——把 `sdk.js` 与页面放在一起（或任意静态路径）：
+把 `sdk.js` 拷贝进你的项目（与页面同目录或任意静态路径），以 ES Module 引入：
 
 ```html
 <script type="module">
@@ -20,15 +18,7 @@
 </script>
 ```
 
-Linux 安装后文件位于 `~/.local/share/x-notify-service/`；Windows 在安装目录。
-
-**服务同源**——直接引用本机服务内嵌的 SDK（与本页同源）：
-
-```html
-<script type="module">
-  import { createNotifyService } from 'http://127.0.0.1:17320/sdk.js'
-</script>
-```
+sdk.js 获取途径：发行包内、Linux `~/.local/share/x-notify-service/`、Windows 安装目录。
 
 ## 3. 快速开始
 
@@ -46,8 +36,7 @@ const result = await svc.notify({
 // result: { ok: true, via: 'popup' | 'system' }
 ```
 
-浏览器打开 `http://127.0.0.1:17320/` 为服务自带演示页;
-发行包内 `demo.html` + `sdk.js` 可作静态文件对单独部署。
+服务自带演示页,地址见 `x-notify-service info` 输出的「演示页」一行。
 
 ## 4. API
 
