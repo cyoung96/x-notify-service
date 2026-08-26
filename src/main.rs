@@ -15,6 +15,8 @@ mod screen;
 mod send;
 mod server;
 mod single;
+#[cfg(test)]
+mod tests_http;
 mod windows_env;
 
 use clap::Parser as _;

@@ -12,7 +12,7 @@ pub(super) fn property_units(blob: &[u8]) -> u32 {
 
 #[cfg(target_os = "linux")]
 mod imp {
-    use super::{property_units, ICON_BLOB};
+    use super::{ICON_BLOB, property_units};
     use x11rb::connection::Connection as _;
     use x11rb::protocol::xproto::ConnectionExt as _;
 
@@ -58,11 +58,7 @@ mod imp {
         dfs_find(conn, root, 0)
     }
 
-    fn dfs_find(
-        conn: &x11rb::rust_connection::RustConnection,
-        wid: u32,
-        depth: u8,
-    ) -> Option<u32> {
+    fn dfs_find(conn: &x11rb::rust_connection::RustConnection, wid: u32, depth: u8) -> Option<u32> {
         if depth > 8 {
             return None;
         }
@@ -141,7 +137,7 @@ pub(super) fn set() {
 
 #[cfg(test)]
 mod tests {
-    use super::{property_units, ICON_BLOB};
+    use super::{ICON_BLOB, property_units};
 
     /// 闪退根因回归:字节数必须换算为 32 位元素数
     #[test]
