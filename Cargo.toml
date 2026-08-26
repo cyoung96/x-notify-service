@@ -44,6 +44,7 @@ x11rb = "0.13"
 
 [build-dependencies]
 slint-build = "1"
+winresource = "0.1"
 
 # ── 最严格 lint 配置:五组全 deny,仅对互斥/不适用项定向豁免 ──
 # Slint 生成代码已在 main.rs 引入处单独豁免(仅保留 correctness 审查)

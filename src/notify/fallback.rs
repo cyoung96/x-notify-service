@@ -21,7 +21,10 @@ impl Presenter for SystemPresenter {
         // 系统通知为纯文本,HTML 正文先剥离标记
         let body = crate::html::to_plain_text(body_html);
         let mut n = notify_rust::Notification::new();
-        n.appname("x-notify-service").summary(title).body(&body);
+        n.appname("x-notify-service")
+            .icon(crate::config::APP_DIR_NAME)
+            .summary(title)
+            .body(&body);
         #[cfg(windows)]
         if let Some(app_id) = &self.app_id {
             n.app_id(app_id);
