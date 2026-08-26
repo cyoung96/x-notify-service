@@ -16,7 +16,11 @@ sleep 1
 dbus-send --session --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames \
     | grep -q org.freedesktop.Notifications || { echo "mock 未占住总线名"; exit 1; }
 
-./target/release/x-notify-service --no-popup serve &
+# HTTP 集成测试已入 cargo test(tests_http.rs);此处只测 D-Bus 兜底端到端。
+# 直接以 debug 产物运行(不再依赖 release 编译)
+BIN="./target/debug/x-notify-service"
+[ -x "$BIN" ] || BIN="./target/release/x-notify-service"
+"$BIN" --no-popup serve &
 SVC_PID=$!
 trap 'kill $MOCK_PID $SVC_PID 2>/dev/null || true' EXIT
 
