@@ -1,6 +1,6 @@
 # x-notify-service JS SDK 使用手册
 
-浏览器页面 → 本机右下角弹窗通知。本手册随安装包发布，`sdk.js` 与 `demo.html` 在同目录。
+浏览器页面 → 本机右下角弹窗通知。本手册与 `sdk.js` 随安装包发布。
 
 ## 1. 环境要求
 
@@ -102,6 +102,3 @@ x-notify-service uninstall            # 停止服务并清理全部注册
 
 **Q：`via` 是什么？**
 `popup` = 右下角弹窗（主渠道）；`system` = 系统通知（兜底：无桌面会话/Wayland/弹窗初始化失败）。
-
-**Q：demo.html 双击打开（file://）能用吗？**
-不能，ES Module 需要 http 服务。`python3 -m http.server` 起一个即可。

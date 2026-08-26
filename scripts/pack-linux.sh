@@ -86,7 +86,6 @@ assemble() {
     cp scripts/templates/config.toml "$out/config/"
     cp scripts/templates/install-linux.sh "$out/install.sh"
     chmod +x "$out/install.sh"
-    cp assets/demo.html "$out/demo.html"
     cp assets/sdk-使用手册.md "$out/sdk-使用手册.md"
     cp sdk/js/packages/sdk/dist/x-notify-service-sdk.js "$out/sdk.js"
     cp -R assets/icons/hicolor "$out/icons/"
