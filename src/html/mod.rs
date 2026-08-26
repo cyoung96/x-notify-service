@@ -4,6 +4,8 @@
 //! → `markup`(逐行输出 `StyledText` 标记)。中间类型对本模块外不可见,
 //! 调用方只依赖三个入口:`parse`、`to_styled_lines`、`to_plain_text`。
 
+mod attr;
+mod entity;
 mod markup;
 mod parse;
 mod wrap;

@@ -48,10 +48,10 @@ POST /notify → {"ok":true,"via":"popup"|"system"}
 ## JSSDK(sdk/js,pnpm workspace)
 
 ```ts
-import { createNoticeBridge } from '@hexinfo/x-notify-service-sdk'
+import { createNotifyService } from '@hexinfo/x-notify-service-sdk'
 
 // 仅对需要通知能力的角色初始化(接入方条件接入)
-const bridge = createNoticeBridge()          // basePort=17320, portRange=10
+const bridge = createNotifyService()          // basePort=17320, portRange=10
 await bridge.discover()                       // 探测服务 → baseUrl | null
 
 // 静默失败语义:服务未安装/未运行时不拉起、不抛错,返回 { ok: false } 由业务自理

@@ -80,6 +80,7 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
         return;
     }
 
+    let fixups = fixup_timers(&popup, area);
     CURRENT.with(|current| {
         let mut current = current.borrow_mut();
         if let Some(old) = current.take() {
@@ -95,28 +96,6 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
             area.w,
             area.h
         );
-        // 显示后多次复校位置,对抗 WM 重摆;发现被移动则告警留痕
-        let weak = popup.as_weak();
-        let mut fixups = Vec::with_capacity(4);
-        for delay_ms in [50u64, 120, 250, 500] {
-            let weak = weak.clone();
-            let t = slint::Timer::default();
-            t.start(
-                slint::TimerMode::SingleShot,
-                std::time::Duration::from_millis(delay_ms),
-                move || {
-                    if let Some(p) = weak.upgrade() {
-                        let expected = landing(&area);
-                        let cur = p.window().position();
-                        if (cur.x - expected.0).abs() > 2i32 || (cur.y - expected.1).abs() > 2i32 {
-                            log::warn!("WM 重摆了弹窗(现 {cur:?}),复校回 {expected:?}");
-                        }
-                        position(&p, &area);
-                    }
-                },
-            );
-            fixups.push(t);
-        }
         *current = Some(Entry {
             id,
             popup,
@@ -124,6 +103,34 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
             quit_on_close,
         });
     });
+}
+
+/// 显示后多次复校位置,对抗 WM 重摆(部分窗口管理器会把新映射窗口摆到默认位);
+/// 每次触发先对比现位置,发现被移动则告警留痕再复校。
+/// 返回的定时器由 Entry 持有,条目移除时随之失效。
+fn fixup_timers(popup: &PopupWindow, area: crate::screen::WorkArea) -> Vec<slint::Timer> {
+    let weak = popup.as_weak();
+    let mut fixups = Vec::with_capacity(4);
+    for delay_ms in [50u64, 120, 250, 500] {
+        let weak = weak.clone();
+        let t = slint::Timer::default();
+        t.start(
+            slint::TimerMode::SingleShot,
+            std::time::Duration::from_millis(delay_ms),
+            move || {
+                if let Some(p) = weak.upgrade() {
+                    let expected = landing(&area);
+                    let cur = p.window().position();
+                    if (cur.x - expected.0).abs() > 2i32 || (cur.y - expected.1).abs() > 2i32 {
+                        log::warn!("WM 重摆了弹窗(现 {cur:?}),复校回 {expected:?}");
+                    }
+                    position(&p, &area);
+                }
+            },
+        );
+        fixups.push(t);
+    }
+    fixups
 }
 
 /// 关闭并移除当前条目;`quit_on_close` 条目在关闭后请求退出事件循环

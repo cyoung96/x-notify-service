@@ -2,10 +2,6 @@
 //! 支持的子集:`<b>/<strong>`、`<font>/<span>` 的 color 与 size、`<br>`、
 //! 块级标签换行、HTML 实体;其余标签一律剥除保留内文。
 
-/// 字号允许范围(超出视为无效样式,回落默认)
-const FONT_SIZE_MIN: u16 = 11;
-const FONT_SIZE_MAX: u16 = 18;
-
 /// 一段同样式文本
 pub(super) struct Run {
     pub text: String,
@@ -69,7 +65,7 @@ pub(super) fn parse_logical_lines(html: &str) -> LogicalLines {
             continue;
         }
         if c == '&' {
-            let (decoded, next) = read_entity(&chars, i);
+            let (decoded, next) = super::entity::read_entity(&chars, i);
             if let Some(ch) = decoded {
                 text.push(ch);
                 i = next;
@@ -184,8 +180,8 @@ fn apply_tag(
                 // 未显式指定时继承外层样式(栈顶)
                 let inherited_color = color_stack.last().copied().flatten();
                 let inherited_size = size_stack.last().copied().flatten();
-                let color = parse_color_attr(attrs).or(inherited_color);
-                let size = parse_size_attr(attrs).or(inherited_size);
+                let color = super::attr::parse_color_attr(attrs).or(inherited_color);
+                let size = super::attr::parse_size_attr(attrs).or(inherited_size);
                 color_stack.push(color);
                 size_stack.push(size);
             }
@@ -204,125 +200,4 @@ fn apply_tag(
         }
         _ => {} // 其余标签(i/u/a/s/table…)一律剥除,只保留内文
     }
-}
-
-/// 读取实体,返回 (解码字符, 下一个下标);非实体时解码为 None
-fn read_entity(chars: &[char], from: usize) -> (Option<char>, usize) {
-    let mut k = from + 1;
-    let mut ent = String::new();
-    while k < chars.len() && chars[k] != ';' && k - from <= 10 {
-        ent.push(chars[k]);
-        k += 1;
-    }
-    if k < chars.len()
-        && chars[k] == ';'
-        && let Some(ch) = decode_entity(&ent)
-    {
-        return (Some(ch), k + 1);
-    }
-    (None, from)
-}
-
-fn decode_entity(ent: &str) -> Option<char> {
-    match ent {
-        "amp" => Some('&'),
-        "lt" => Some('<'),
-        "gt" => Some('>'),
-        "quot" => Some('"'),
-        "apos" | "#39" => Some('\''),
-        "nbsp" => Some('\u{a0}'),
-        _ => {
-            let num = ent.strip_prefix('#')?;
-            let code = if let Some(hex) = num.strip_prefix('x').or_else(|| num.strip_prefix('X')) {
-                u32::from_str_radix(hex, 16).ok()
-            } else {
-                num.parse::<u32>().ok()
-            };
-            char::from_u32(code?)
-        }
-    }
-}
-
-fn parse_color_attr(attrs: &str) -> Option<(u8, u8, u8)> {
-    let lower = attrs.to_ascii_lowercase();
-    let pos = lower.find("color")?;
-    parse_color_value(&extract_attr_value(&attrs[pos..])?)
-}
-
-/// `<font size="16">` / `<font size="16px">` / `style="font-size:16px"`
-fn parse_size_attr(attrs: &str) -> Option<u16> {
-    let lower = attrs.to_ascii_lowercase();
-    let pos = lower.find("font-size").or_else(|| lower.find("size"))?;
-    let value = extract_attr_value(&attrs[pos..])?;
-    let digits: String = value.chars().filter(char::is_ascii_digit).collect();
-    let size: u16 = digits.parse().ok()?;
-    (FONT_SIZE_MIN..=FONT_SIZE_MAX)
-        .contains(&size)
-        .then_some(size)
-}
-
-/// 从 "xxx=值 ..." 形式的属性串中提取值(支持引号与裸值)
-fn extract_attr_value(s: &str) -> Option<String> {
-    let mut start: Option<usize> = None;
-    let mut end = s.len();
-    let mut quote: Option<char> = None;
-    for (idx, ch) in s.char_indices().skip(5) {
-        match (quote, ch) {
-            (None, c) if c.is_whitespace() || c == '=' || c == ':' => {}
-            (None, c) if c == '"' || c == '\'' => {
-                quote = Some(c);
-                start = Some(idx + c.len_utf8());
-            }
-            (None, _) => {
-                start = Some(idx);
-                end = s[idx..]
-                    .find(char::is_whitespace)
-                    .map_or(s.len(), |p| idx + p);
-                break;
-            }
-            (Some(q), c) if c == q => {
-                end = idx;
-                break;
-            }
-            _ => {}
-        }
-    }
-    start.map(|s0| s[s0..end].to_string())
-}
-
-fn parse_color_value(v: &str) -> Option<(u8, u8, u8)> {
-    let v = v.trim().trim_end_matches(';');
-    if let Some(hex) = v.strip_prefix('#') {
-        let b = hex.as_bytes();
-        let all_hex = b.iter().all(u8::is_ascii_hexdigit);
-        return match b.len() {
-            3 if all_hex => {
-                assert_eq!(b.len(), 3, "hex 颜色长度守卫"); // 多次索引前置断言,辅助静态验证
-                let d = |hi: u8, lo: u8| {
-                    u8::from_str_radix(&format!("{}{}", hi as char, lo as char), 16).ok()
-                };
-                Some((d(b[0], b[0])?, d(b[1], b[1])?, d(b[2], b[2])?))
-            }
-            6 if all_hex => {
-                let h = |r: std::ops::Range<usize>| -> Option<u8> {
-                    u8::from_str_radix(std::str::from_utf8(&b[r]).ok()?, 16).ok()
-                };
-                Some((h(0..2)?, h(2..4)?, h(4..6)?))
-            }
-            _ => None,
-        };
-    }
-    let named = match v.to_ascii_lowercase().as_str() {
-        "red" => (0xd9, 0x30, 0x25),
-        "green" => (0x00, 0x87, 0x3a),
-        "blue" => (0x1a, 0x6d, 0xf2),
-        "orange" => (0xe8, 0x71, 0x0a),
-        "yellow" => (0xb2, 0x8b, 0x00),
-        "purple" => (0x8b, 0x17, 0xb0),
-        "gray" | "grey" => (0x86, 0x90, 0x9c),
-        "black" => (0x1f, 0x23, 0x29),
-        "white" => (0xff, 0xff, 0xff),
-        _ => return None,
-    };
-    Some(named)
 }

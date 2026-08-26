@@ -4,11 +4,11 @@ export {
   DEFAULT_PORT_RANGE,
   PROTOCOL_URL,
 } from './constants'
-export { createNoticeBridge } from './create-notice-bridge'
+export { createNotifyService } from './create-notify-service'
 export type {
-  NoticeBridge,
-  NoticeBridgeOptions,
   NotifyOptions,
   NotifyResult,
+  NotifyService,
+  NotifyServiceOptions,
   NotifyVia,
 } from './types'
