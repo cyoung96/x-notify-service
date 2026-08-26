@@ -21,7 +21,7 @@ x-notify-service install      # 注册开机自启 + x-notify:// 协议,并启�
 x-notify-service uninstall    # 清理全部注册项
 x-notify-service info         # 诊断快照:实例/端口/显示环境/工作区/注册状态(只读)
 x-notify-service start|stop|restart   # 服务生命周期(幂等;stop 经端口文件 pid + 身份校验)
-x-notify-service notify -t "标题"                      # 本机手测一条通知(不经 HTTP)
+x-notify-service notify -t "标题"                      # 本机手测一条通知(服务在跑走其 HTTP 通道,否则本进程弹窗)
 x-notify-service notify -t "标题" -b "<b>正文</b><br>第二行"   # 正文支持 HTML 子集(加粗/颜色/字号/br)
 x-notify-service notify -t "标题" -f                   # 同上,强制走系统通知兜底(正文自动剥为纯文本)
 x-notify-service close        # 关闭当前弹窗(幂等)
@@ -38,9 +38,11 @@ x-notify-service close        # 关闭当前弹窗(幂等)
 GET  /health → {"app":"x-notify-service","version":"0.1.0","port":17320}
 POST /notify → {"ok":true,"via":"popup"|"system"}
      body: {"title":"必填,≤200字", "body":"可选,≤2000字,HTML子集"}
+POST /close  → {"ok":true}(关闭当前弹窗,幂等)
+OPTIONS      → 204(CORS 预检,Allow-Origin:* + Private-Network)
 ```
 
-正文 HTML 子集:`<b>/<strong>` 加粗、`<font color="…">/<span style="color:…">` 颜色、`<font size="16">/<span style="font-size:16px">` 字号(11~18,按行生效)、`<br>` 换行、HTML 实体;其余标签剥除保留内文,最多显示 4 行(超出截断加 …),行距 1.5 倍。弹窗常驻不超时:点击关闭或被新通知顶掉;同时只有一条,不堆叠。
+正文 HTML 子集:`<b>/<strong>` 加粗、`<font color="…">/<span style="color:…">` 颜色、`<font size="16">/<span style="font-size:16px">` 字号(11~18,按行生效)、`<br>` 换行、HTML 实体;其余标签剥除保留内文,最多显示 5 行(超出截断加 …),行高为字号 ×1.6,行间 4px。弹窗常驻不超时:点击关闭或被新通知顶掉;同时只有一条,不堆叠。
 
 ### 进程模型
 
@@ -82,17 +84,27 @@ pnpm demo        # 演示页 http://localhost:8086
 ## 打包(同构脚本)
 
 ```
-scripts/pack-linux.sh    [target]   # 正式:tar.xz 绿色版(bin+config+demo+sdk+install.sh+图标)
-                                    # 默认 x86_64;飞腾/鲲鹏传 aarch64-unknown-linux-gnu;
-                                    # macOS 上经 Docker(rust:1-slim)交叉编译
+scripts/pack-linux.sh    [arch]     # 正式:tar.xz 绿色版(bin+config+demo+sdk+手册+install.sh+图标)
+                                    # arch ∈ x86_64(默认) | aarch64 | all;
+                                    # 一律在 Debian 10 容器内编译(glibc 2.28 地板,兼容 UOS 20/麒麟)
 scripts/pack-windows.sh  [target]   # 正式:NSIS setup.exe(per-user 免 UAC、可选目录、LZMA)
 scripts/pack-macos.sh              # 仅测试:.app bundle(验证 x-notify:// 协议拉起)
 ```
 
 - Linux 安装(全程普通用户权限):解压 tar.xz → `./install.sh` → 复制到 `~/.local/bin`、
-  图标到 `~/.local/share/icons`、演示页与 SDK 到 `~/.local/share/x-notify-service/`,
+  图标到 `~/.local/share/icons`、演示页、SDK 与使用手册到 `~/.local/share/x-notify-service/`,
   并调用 `x-notify-service install` 完成用户级注册(自启动 + 协议)+ 分离启动服务。
 - Windows 安装:双击 setup.exe → 选目录 → 安装末尾静默注册并启动服务。
+
+## 版本发布(CI)
+
+- 推 `main`:仅跑测试检查(clippy/单测/集成/GUI 定位断言/SDK),不打包不发版
+- 打 `v*` 标签(如 `v0.1.0`):三平台打包并发布到 GitHub Releases
+  (Linux 在 Debian 10 容器编译,glibc 2.28 地板;脚本自带 GLIBC 断言)
+
+```
+git tag v0.1.0 && git push origin v0.1.0   # 正式发版
+```
 
 ## 已知限制
 
