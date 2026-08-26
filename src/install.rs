@@ -3,6 +3,85 @@
 
 use crate::{autostart, ctl, protocol};
 
+#[cfg(windows)]
+// Win32 注册表/消息广播 FFI
+#[allow(unsafe_code)]
+fn set_user_path(add: bool) {
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
+    use winreg::{RegKey, RegValue};
+
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let Some(dir) = exe.parent() else { return };
+    let dir_text = dir.to_string_lossy().to_string();
+
+    let env = match RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)
+    {
+        Ok(k) => k,
+        Err(e) => {
+            eprintln!("配置用户 PATH 失败: {e}");
+            return;
+        }
+    };
+    let raw = env.get_raw_value("Path").unwrap_or(RegValue {
+        bytes: Vec::new(),
+        vtype: winreg::enums::REG_EXPAND_SZ,
+    });
+    let cur = String::from_utf16_lossy(
+        &raw.bytes
+            .chunks_exact(2)
+            .map(|b| u16::from_le_bytes([b[0], b[1]]))
+            .collect::<Vec<u16>>(),
+    );
+    let mut entries: Vec<String> = cur
+        .split(';')
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect();
+    let exists = entries.iter().any(|e| e.eq_ignore_ascii_case(&dir_text));
+    let changed = match (add, exists) {
+        (true, false) => {
+            entries.push(dir_text);
+            true
+        }
+        (false, true) => {
+            entries.retain(|e| !e.eq_ignore_ascii_case(&dir_text));
+            true
+        }
+        _ => false,
+    };
+    if !changed {
+        return;
+    }
+    let joined = format!("{}\0", entries.join(";"));
+    let bytes: Vec<u8> = joined.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    if let Err(e) = env.set_raw_value(
+        "Path",
+        &RegValue {
+            bytes,
+            vtype: raw.vtype,
+        },
+    ) {
+        eprintln!("写入用户 PATH 失败: {e}");
+        return;
+    }
+    // 广播环境变更:新开的终端即可命中;已开终端需重开
+    let param: Vec<u16> = "Environment\0".encode_utf16().collect();
+    unsafe {
+        windows_sys::Win32::UI::WindowsAndMessaging::SendMessageTimeoutW(
+            windows_sys::Win32::UI::WindowsAndMessaging::HWND_BROADCAST,
+            windows_sys::Win32::UI::WindowsAndMessaging::WM_SETTINGCHANGE,
+            0,
+            param.as_ptr() as isize,
+            windows_sys::Win32::UI::WindowsAndMessaging::SMTO_ABORTIFHUNG,
+            3000,
+            std::ptr::null_mut(),
+        );
+    };
+}
+
 /// install 子命令:注册自启动 + x-notify:// 协议(失败仅告警,不阻塞),
 /// 随后分离启动服务进程并立即返回,供安装器/脚本调用不阻塞。
 pub fn install() {
@@ -14,6 +93,8 @@ pub fn install() {
         Ok(()) => log::info!("已注册 {}:// 协议", protocol::SCHEME),
         Err(e) => log::warn!("注册 {}:// 协议失败: {e}", protocol::SCHEME),
     }
+    #[cfg(windows)]
+    set_user_path(true);
     ctl::start_detached();
     println!("安装完成,服务已在后台启动");
 }
@@ -21,6 +102,8 @@ pub fn install() {
 /// uninstall 子命令:先停止运行中的服务,再清理全部注册项,
 /// 避免留下「还在跑但不再自启」的半卸载状态
 pub fn uninstall() {
+    #[cfg(windows)]
+    set_user_path(false);
     ctl::stop();
     match autostart::disable() {
         Ok(()) => println!("已移除开机自启动"),

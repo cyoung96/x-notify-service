@@ -36,7 +36,46 @@ mod slint_generated {
 }
 pub use slint_generated::*;
 
+/// GUI 子系统二进制无控制台:从 cmd/PowerShell 启动 CLI 子命令时把输出接回
+/// 调用方终端(AttachConsole 父进程);双击/自启动/安装器等无控制台场景
+/// 挂接失败,保持静默,不影响服务运行。
+#[cfg(windows)]
+// 取屏 FFI 同款豁免:仅此一处 Win32 控制台挂接
+#[allow(unsafe_code)]
+fn attach_parent_console() {
+    use windows_sys::Win32::Foundation::{GENERIC_WRITE, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::Storage::FileSystem::{CreateFileW, FILE_SHARE_WRITE, OPEN_EXISTING};
+    use windows_sys::Win32::System::Console::{
+        ATTACH_PARENT_PROCESS, AttachConsole, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE, SetStdHandle,
+    };
+
+    // SAFETY: 常量入参;句柄仅转交标准设备表,失败即原样返回静默运行
+    unsafe {
+        if AttachConsole(ATTACH_PARENT_PROCESS) == 0 {
+            return;
+        }
+        let name: Vec<u16> = "CONOUT$\0".encode_utf16().collect();
+        let con = CreateFileW(
+            name.as_ptr(),
+            GENERIC_WRITE,
+            FILE_SHARE_WRITE,
+            std::ptr::null(),
+            OPEN_EXISTING,
+            0,
+            std::ptr::null_mut(),
+        );
+        if con != INVALID_HANDLE_VALUE {
+            SetStdHandle(STD_OUTPUT_HANDLE, con);
+            SetStdHandle(STD_ERROR_HANDLE, con);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn attach_parent_console() {}
+
 fn main() {
+    attach_parent_console();
     let cli = config::Cli::parse();
     let cfg = config::resolve(&cli);
     let _logger = logging::init(&cfg);
