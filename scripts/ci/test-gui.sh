@@ -58,6 +58,8 @@ if command -v xdotool >/dev/null 2>&1; then
             DX=$((WX - 899)); if [ $DX -lt 0 ]; then DX=$((-DX)); fi
             DY=$((WY - 580)); if [ $DY -lt 0 ]; then DY=$((-DY)); fi
             echo "弹窗实际位置: ($WX,$WY),期望: (899,580),偏差: (${DX},${DY})"
+            echo "INFO: WM_CLASS=$(xprop -id "$WIN" WM_CLASS 2>/dev/null)"
+            echo "INFO: _NET_WM_ICON=$(xprop -id "$WIN" _NET_WM_ICON 2>/dev/null | head -c 60)"
             # 置顶态:无头 Xvfb 的 Xfwm4 不应答 EWMH 状态切换(手工 ClientMessage 亦失败),
             # 该环境无法证明置顶;真机 KWin/DDE 支持,留待实机验证。仅记录不断言
             echo "INFO: 置顶态(无头 WM 不可证): $(xprop -id "$WIN" _NET_WM_STATE 2>/dev/null | head -1)"
