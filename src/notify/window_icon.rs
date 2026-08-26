@@ -6,31 +6,16 @@ mod imp {
     use x11rb::connection::Connection as _;
     use x11rb::protocol::xproto::ConnectionExt as _;
 
+    include!(concat!(env!("OUT_DIR"), "/window_icons.rs"));
+
     pub(super) fn set() {
-        const ICONS: [&[u8]; 4] = [
-            include_bytes!("../../assets/icons/hicolor/x-notify-service-128.png"),
-            include_bytes!("../../assets/icons/hicolor/x-notify-service-48.png"),
-            include_bytes!("../../assets/icons/hicolor/x-notify-service-32.png"),
-            include_bytes!("../../assets/icons/hicolor/x-notify-service-16.png"),
-        ];
-        let mut data: Vec<u32> = Vec::new();
-        for bytes in ICONS {
-            match decode_rgba(bytes) {
-                Some(img) => {
-                    data.push(img.0);
-                    data.push(img.1);
-                    data.extend(img.2);
-                }
-                None => log::warn!("内嵌图标解码失败,跳过一档"),
-            }
-        }
         let Ok((conn, screen_num)) = x11rb::connect(None) else {
             log::debug!("无 X 连接,跳过多档图标");
             return;
         };
         let root = conn.setup().roots[screen_num].root;
         if let Some(wid) = find_window(&conn, root) {
-            write_icons(&conn, wid, &data);
+            write_blob(&conn, wid, ICON_BLOB);
         }
     }
 
@@ -134,23 +119,6 @@ mod imp {
         );
         let _ = conn.flush();
         log::debug!("已写入多档窗口图标");
-    }
-
-    /// 解码内嵌 PNG 为宽高与 ARGB 像素
-    fn decode_rgba(bytes: &[u8]) -> Option<(u32, u32, Vec<u32>)> {
-        let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
-        let mut reader = decoder.read_info().ok()?;
-        let mut buf = vec![0u8; reader.output_buffer_size()];
-        let info = reader.next_frame(&mut buf).ok()?;
-        let (chunks, _) = buf.as_chunks::<4>();
-        let argb = chunks
-            .iter()
-            .map(|px| {
-                let [r, g, b, a] = *px;
-                (u32::from(a) << 24) | (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
-            })
-            .collect();
-        Some((info.width.min(512), info.height.min(512), argb))
     }
 }
 
