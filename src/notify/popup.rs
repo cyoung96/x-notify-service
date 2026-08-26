@@ -241,7 +241,7 @@ fn decode_rgba(bytes: &[u8]) -> Option<(u32, u32, Vec<u32>)> {
     Some((info.width.min(512), info.height.min(512), argb))
 }
 
-/// 目标窗口判定:WM_NAME(STRING) 或 _NET_WM_NAME(UTF8_STRING) 等于本服务名。
+/// 目标窗口判定:`WM_NAME`(STRING) 或 `_NET_WM_NAME`(UTF8_STRING) 等于本服务名。
 /// winit 在不同后端路径设置的名称属性不一,两路兜底
 #[cfg(target_os = "linux")]
 fn window_matches(conn: &x11rb::rust_connection::RustConnection, wid: u32) -> bool {
