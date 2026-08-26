@@ -47,7 +47,7 @@ fn main() {
     }
 
     // Linux 多档窗口图标:构建期把 PNG 解码并直接产出 X11 线序字节流,
-    // 运行时零解码零拷贝(依赖树的 png 仅存在于构建图)
+    // 运行时零解码零拷贝(依赖树的 png 仅存在于构建图);仅 Linux 目标生成
     if target.contains("linux") {
         let mut out = String::from(
             "/// 构建期生成:_NET_WM_ICON 线序负载(小端 u32 流,含各档宽高)\npub(super) const ICON_BLOB: &[u8] = &[\n",

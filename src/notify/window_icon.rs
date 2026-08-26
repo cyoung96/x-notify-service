@@ -1,12 +1,20 @@
-//! Linux 窗口图标直写:slint 的 icon 属性只能设单张,
-//! 这里按 EWMH 偏好序补齐多档,任务栏取最近尺寸免缩放。
+//! 窗口多档图标:构建期生成 X11 线序负载(纯数据,跨平台编译与测试),
+//! X11 直写仅 Linux 运行时;slint 的 icon 属性只能设单张,这里补齐四档供任务栏取最近尺寸。
+
+include!(concat!(env!("OUT_DIR"), "/window_icons.rs"));
+
+/// format=32 时 data_length 是 32 位元素个数(非字节数);
+/// 传字节长会触发 x11rb 客户端断言 panic(UOS 闪退根因,回归测试钉死)
+pub(super) fn property_units(blob: &[u8]) -> u32 {
+    // 字节长转 u32 元素数:右移两位即 /4
+    u32::try_from(blob.len() >> 2).unwrap_or(u32::MAX)
+}
 
 #[cfg(target_os = "linux")]
 mod imp {
+    use super::{property_units, ICON_BLOB};
     use x11rb::connection::Connection as _;
     use x11rb::protocol::xproto::ConnectionExt as _;
-
-    include!(concat!(env!("OUT_DIR"), "/window_icons.rs"));
 
     pub(super) fn set() {
         let Ok((conn, screen_num)) = x11rb::connect(None) else {
@@ -50,7 +58,11 @@ mod imp {
         dfs_find(conn, root, 0)
     }
 
-    fn dfs_find(conn: &x11rb::rust_connection::RustConnection, wid: u32, depth: u8) -> Option<u32> {
+    fn dfs_find(
+        conn: &x11rb::rust_connection::RustConnection,
+        wid: u32,
+        depth: u8,
+    ) -> Option<u32> {
         if depth > 8 {
             return None;
         }
@@ -116,29 +128,33 @@ mod imp {
         let _ = conn.flush();
         log::debug!("已写入多档窗口图标");
     }
+}
 
-    /// format=32 时 data_length 是 32 位元素个数(非字节数);
-    /// 传字节长会触发 x11rb 客户端断言 panic(UOS 闪退根因,回归测试钉死)
-    pub(super) fn property_units(blob: &[u8]) -> u32 {
-        // 字节长转 u32 元素数:右移两位即 /4
-        u32::try_from(blob.len() >> 2).unwrap_or(u32::MAX)
+#[cfg(target_os = "linux")]
+pub(super) fn set() {
+    // 图标是装饰性功能:任何 panic 拦截降级为 error 日志,
+    // 绝不允许它杀死事件循环线程(UOS 闪退事故教训)
+    if std::panic::catch_unwind(imp::set).is_err() {
+        log::error!("窗口图标写入失败(panic 已拦截),通知功能不受影响");
     }
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(test)]
 mod tests {
-    use super::imp::{property_units, ICON_BLOB};
+    use super::{property_units, ICON_BLOB};
 
-    /// 闪退根因回归:79904 字节必须是 19976 个元素,而不是 79904
+    /// 闪退根因回归:字节数必须换算为 32 位元素数
     #[test]
     fn property_length_counts_elements() {
-        assert_eq!(property_units(&[0u8; 79_904]), 19_976);
+        assert_eq!(property_units(&[0u8; 16]), 4);
+        let big = vec![0u8; 79_904];
+        assert_eq!(property_units(&big), 19_976);
     }
 
     /// 构建期生成的负载可整除且恰含四档图标(128/48/32/16)
     #[test]
     fn icon_blob_structure_valid() {
-        assert_eq!(ICON_BLOB.len() % 4, 0, "负载须为 u32 流");
+        assert_eq!(ICON_BLOB.len() & 3, 0, "负载须为 u32 流");
         let le = |o: usize| u32::from_le_bytes(ICON_BLOB[o..o + 4].try_into().unwrap());
         let mut off = 0;
         let mut sizes = Vec::new();
@@ -150,14 +166,5 @@ mod tests {
         }
         assert_eq!(off, ICON_BLOB.len(), "负载无尾部残渣");
         assert_eq!(sizes, vec![128, 48, 32, 16], "四档按偏好序");
-    }
-}
-
-#[cfg(target_os = "linux")]
-pub(super) fn set() {
-    // 图标是装饰性功能:任何 panic 拦截降级为 error 日志,
-    // 绝不允许它杀死事件循环线程(UOS 闪退事故教训)
-    if std::panic::catch_unwind(imp::set).is_err() {
-        log::error!("窗口图标写入失败(panic 已拦截),通知功能不受影响");
     }
 }
