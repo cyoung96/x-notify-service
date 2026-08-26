@@ -85,7 +85,7 @@ jobs:
       - if: runner.os == 'Linux'
         uses: actions/cache@v4
         with:
-          path: target/${{ matrix.name == 'linux-x86_64' && 'x86_64' || 'aarch64' }}
+          path: target/linux-${{ matrix.name == 'linux-x86_64' && 'x86_64' || 'aarch64' }}
           key: ${{ matrix.name }}-target-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ matrix.name }}-target-
       - if: runner.os == 'Windows'
