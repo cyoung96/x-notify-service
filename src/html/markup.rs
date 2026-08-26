@@ -4,9 +4,10 @@
 
 use std::fmt::Write as _;
 
+use super::attr::FontSize;
 use super::wrap::WrappedLines;
 
-pub(super) fn styled_lines(lines: &WrappedLines) -> Vec<(String, Option<u16>)> {
+pub(super) fn styled_lines(lines: &WrappedLines) -> Vec<(String, Option<FontSize>)> {
     lines
         .0
         .iter()
@@ -17,8 +18,8 @@ pub(super) fn styled_lines(lines: &WrappedLines) -> Vec<(String, Option<u16>)> {
                 if text.is_empty() {
                     continue;
                 }
-                if let Some((r, g, b)) = run.style.color {
-                    let _ = write!(out, "<font color=\"#{r:02x}{g:02x}{b:02x}\">");
+                if let Some(rgb) = run.style.color {
+                    let _ = write!(out, "<font color=\"{}\">", rgb.hex());
                 }
                 if run.style.bold {
                     out.push_str("**");

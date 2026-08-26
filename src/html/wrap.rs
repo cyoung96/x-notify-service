@@ -2,6 +2,7 @@
 //! 行首禁则(`kinsoku`):折行点若使标点成为下一行行首,把前一字符一并带下去;
 //! 超过 `MAX_LINES` 截断,末尾追加 …。
 
+use super::attr::FontSize;
 use super::parse::{Line, LogicalLines, Run, RunStyle};
 
 /// 最多显示行数,超出截断加 …
@@ -12,7 +13,7 @@ const BASE_LINE_UNITS: f64 = 24.0;
 /// 物理行(折行后,带本行生效字号)
 pub(super) struct LineOut {
     pub runs: Vec<Run>,
-    pub size: Option<u16>,
+    pub size: Option<FontSize>,
 }
 
 pub(super) struct WrappedLines(pub Vec<LineOut>);
@@ -23,7 +24,7 @@ pub(super) fn wrap_lines(lines: LogicalLines) -> WrappedLines {
     let mut truncated = false;
     'outer: for Line(runs) in logical {
         let line_size = runs.iter().find_map(|r| r.style.size);
-        let font = f64::from(line_size.unwrap_or(super::BASE_FONT_SIZE));
+        let font = f64::from(line_size.unwrap_or(FontSize(super::BASE_FONT_SIZE)).0);
         let max_units = BASE_LINE_UNITS * f64::from(super::BASE_FONT_SIZE) / font;
         let mut cur: Vec<Run> = Vec::new();
         let mut units = 0f64;

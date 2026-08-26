@@ -2,6 +2,8 @@
 //! 支持的子集:`<b>/<strong>`、`<font>/<span>` 的 color 与 size、`<br>`、
 //! 块级标签换行、HTML 实体;其余标签一律剥除保留内文。
 
+use super::attr::{FontSize, Rgb};
+
 /// 一段同样式文本
 pub(super) struct Run {
     pub text: String,
@@ -12,8 +14,8 @@ pub(super) struct Run {
 #[derive(Clone, Copy, PartialEq)]
 pub(super) struct RunStyle {
     pub bold: bool,
-    pub color: Option<(u8, u8, u8)>,
-    pub size: Option<u16>,
+    pub color: Option<Rgb>,
+    pub size: Option<FontSize>,
 }
 
 /// 逻辑行:一组 Run
@@ -26,8 +28,8 @@ pub(super) struct LogicalLines(pub Vec<Line>);
 pub(super) fn parse_logical_lines(html: &str) -> LogicalLines {
     let mut lines: Vec<Line> = vec![Line(Vec::new())];
     let mut bold_depth: u32 = 0;
-    let mut color_stack: Vec<Option<(u8, u8, u8)>> = vec![None];
-    let mut size_stack: Vec<Option<u16>> = vec![None];
+    let mut color_stack: Vec<Option<Rgb>> = vec![None];
+    let mut size_stack: Vec<Option<FontSize>> = vec![None];
     let mut text = String::new();
 
     let chars: Vec<char> = html.chars().collect();
@@ -93,8 +95,8 @@ pub(super) fn parse_logical_lines(html: &str) -> LogicalLines {
 /// 当前生效样式(栈顶)
 fn current_style(
     bold_depth: u32,
-    color_stack: &[Option<(u8, u8, u8)>],
-    size_stack: &[Option<u16>],
+    color_stack: &[Option<Rgb>],
+    size_stack: &[Option<FontSize>],
 ) -> RunStyle {
     RunStyle {
         bold: bold_depth > 0,
@@ -152,8 +154,8 @@ fn apply_tag(
     lines: &mut Vec<Line>,
     text: &mut String,
     bold_depth: &mut u32,
-    color_stack: &mut Vec<Option<(u8, u8, u8)>>,
-    size_stack: &mut Vec<Option<u16>>,
+    color_stack: &mut Vec<Option<Rgb>>,
+    size_stack: &mut Vec<Option<FontSize>>,
 ) {
     let st = current_style(*bold_depth, color_stack, size_stack);
     match name {
