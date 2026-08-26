@@ -26,13 +26,19 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      # 试验:target/release 单独缓存(缩小范围避免全量 target 的 tar 失败)
       - uses: actions/cache@v4
+        id: cargo-home
         with:
-          # 仅缓存 cargo home(注册表+工具链);target/ 曾纳入但 save 时容器
-          # 仍持锁导致 tar 失败、连 .ci-cache 一起丢——拆开独存
           path: .ci-cache
           key: linux-x86_64-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: linux-x86_64-cargo-
+      - uses: actions/cache@v4
+        id: target-release
+        with:
+          path: target/linux-x86_64
+          key: linux-x86_64-target-${{ hashFiles('Cargo.lock') }}
+          restore-keys: linux-x86_64-target-
       - uses: actions/setup-node@v4
         with:
           node-version: 24
