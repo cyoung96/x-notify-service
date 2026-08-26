@@ -108,6 +108,7 @@ pub fn register() -> Result<(), Box<dyn std::error::Error>> {
          Name={name}\n\
          Exec={exe} %u\n\
          Icon={name}\n\
+         StartupWMClass={name}\n\
          NoDisplay=true\n\
          Terminal=false\n\
          MimeType=x-scheme-handler/{scheme};\n",

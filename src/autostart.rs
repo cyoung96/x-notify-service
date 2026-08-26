@@ -78,6 +78,7 @@ pub fn enable() -> Result<(), Box<dyn std::error::Error>> {
          Type=Application\n\
          Name={name}\n\
          Exec=\"{exe}\" {SERVE_ARG}\n\
+         StartupWMClass={name}\n\
          NoDisplay=true\n",
         name = crate::config::APP_DIR_NAME,
         exe = exe.display(),
