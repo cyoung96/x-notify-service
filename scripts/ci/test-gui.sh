@@ -13,6 +13,8 @@ Xvfb "$DISPLAY_ID" -screen 0 1280x800x24 &
 XVFB_PID=$!
 trap 'kill $XVFB_PID 2>/dev/null; pkill -f x-notify-service 2>/dev/null || true' EXIT
 sleep 1
+# 服务/WM/xdotool 统一连接该 DISPLAY(不 export 的话 xdotool 会连默认 :0 而查不到窗口)
+export DISPLAY="$DISPLAY_ID"
 
 # 真实 WM:Xfwm4 会把新窗口按自己的摆放策略放置(如级联/左上角),
 # 并维护 _NET_WORKAREA(无面板时 = 0,0,1280,800)
@@ -66,7 +68,7 @@ if command -v xdotool >/dev/null 2>&1; then
         N3=$(xdotool search --name x-notify-service 2>/dev/null | wc -l | tr -d ' ' || true)
         [ "$N3" = "1" ] && echo "PASS: 新通知顶替后仍恰一个窗口" || { echo "FAIL: 顶替后窗口数 $N3"; exit 1; }
     else
-        echo "SKIP: WM_CLASS 未匹配(xdotool),仅保留 via=popup 断言"
+        echo "SKIP: 按标题未查到弹窗窗口,仅保留 via=popup 断言"
     fi
 fi
 
