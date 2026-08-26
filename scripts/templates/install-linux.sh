@@ -41,6 +41,8 @@ if [ -d "$SRC_DIR/icons/hicolor" ]; then
         mkdir -p "$HOME/.local/share/icons/hicolor/${size}x${size}/apps"
         cp "$png" "$HOME/.local/share/icons/hicolor/${size}x${size}/apps/x-notify-service.png"
     done
+    # 刷新用户级图标缓存,确保 desktop 文件的 Icon= 能被解析(DDE 任务栏走此链)
+    gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 fi
 # 演示页与 SDK 放置到用户数据目录
 mkdir -p "$HOME/.local/share/x-notify-service"
