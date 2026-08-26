@@ -18,6 +18,10 @@ concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
+# 最小权限基线:各 job 按需覆盖(analyze 需 security-events)
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
