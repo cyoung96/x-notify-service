@@ -9,12 +9,13 @@ TARGET="${1:-x86_64-pc-windows-gnu}"
 VERSION="$(grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')"
 STAGE="dist/.stage-windows"
 
-echo "==> cargo build --release --target $TARGET"
-cargo build --release --target "$TARGET"
-
-# 构建 JSSDK 与演示页(安装器内一并分发)
+# 先构建 JSSDK:build.rs 在编译期把 dist 内嵌进二进制(演示页同源引用),
+# 顺序颠倒会把占位桩嵌进正式包
 echo "==> pnpm build sdk"
 (cd sdk/js && pnpm install --silent && pnpm -F @hexinfo/x-notify-service-sdk build)
+
+echo "==> cargo build --release --target $TARGET"
+cargo build --release --target "$TARGET"
 
 rm -rf "$STAGE"
 mkdir -p "$STAGE" dist
