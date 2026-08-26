@@ -4,7 +4,7 @@
 
 ## 1. 环境要求
 
-- 浏览器 Chrome 87+（或同内核；需支持 ES Module）
+- 支持ES Module 的现代浏览器
 - 本机已安装并运行 x-notify-service（未安装时 SDK 静默失败，不报错）
 
 ## 2. 引入方式

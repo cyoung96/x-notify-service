@@ -67,7 +67,7 @@ await bridge.start()                              // 幂等;未安装/超时静�
 await bridge.close()                              // 显式关闭当前弹窗(对应老系统 ClosePopup)
 ```
 
-- 零依赖、纯 ESM、Vite lib 模式构建,`target: chrome87`(信创浏览器基线)。
+- 零依赖、纯 ESM、Vite lib 模式构建(ES2020 语法,esbuild 负责降级)。
 - 零预检:notify 不带 Content-Type(默认 text/plain),属 CORS 简单请求。
 - 发现策略:首次并发探测 `[17320, 17329]` 后缓存;`/health` 中 `app` 标识验明正身;仅请求失败才重新探测。
 
