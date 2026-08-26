@@ -85,6 +85,11 @@ if command -v xdotool >/dev/null 2>&1; then
         sleep 1
         N3=$(xdotool search --name x-notify-service 2>/dev/null | wc -l | tr -d ' ' || true)
         [ "$N3" = "1" ] && echo "PASS: 新通知顶替后仍恰一个窗口" || { echo "FAIL: 顶替后窗口数 $N3"; exit 1; }
+
+        # 服务存活断言:通知路径任何 panic(如 x11rb 参数断言)都会杀死服务进程,
+        # 曾逃过窗口断言直发真机(UOS 闪退事故),此断言兜死该类缺陷
+        SVC_PID=$(pidof x-notify-service 2>/dev/null | tr -d ' ')
+        [ -n "$SVC_PID" ] && echo "PASS: 通知全路径后服务进程存活($SVC_PID)" || { echo "FAIL: 服务进程在通知路径中死亡"; cat /tmp/xns-gui.log; exit 1; }
     else
         echo "SKIP: 按标题未查到弹窗窗口,仅保留 via=popup 断言"
     fi

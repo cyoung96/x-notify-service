@@ -154,5 +154,9 @@ mod tests {
 
 #[cfg(target_os = "linux")]
 pub(super) fn set() {
-    imp::set();
+    // 图标是装饰性功能:任何 panic 拦截降级为 error 日志,
+    // 绝不允许它杀死事件循环线程(UOS 闪退事故教训)
+    if std::panic::catch_unwind(imp::set).is_err() {
+        log::error!("窗口图标写入失败(panic 已拦截),通知功能不受影响");
+    }
 }

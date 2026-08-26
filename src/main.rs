@@ -48,6 +48,13 @@ fn main() {
         Some(_) => false,
     };
     let _logger = serve_mode.then(|| logging::init(&cfg));
+    if serve_mode {
+        // panic 默认走 stderr,分离启动的服务 stderr 已丢弃;
+        // 挂钩把 panic 记入日志文件,真机故障可查(UOS 闪退事故教训)
+        std::panic::set_hook(Box::new(|info| {
+            log::error!("panic: {info}");
+        }));
+    }
 
     match cli.cmd {
         // 无参数:显示帮助;协议拉起(url 参数)时仍直接进入服务(单例语义)
