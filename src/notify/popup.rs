@@ -84,7 +84,12 @@ pub fn spawn(title: String, body_html: String) {
             log::debug!("新通知顶掉旧通知");
         }
         position(&popup, &area);
-        // 显示后多次复校位置,对抗 WM 重摆
+        let (px, py) = bottom_right(&area);
+        log::info!(
+            "弹窗定位: 工作区({},{},{}x{}) → ({px},{py})",
+            area.x, area.y, area.w, area.h
+        );
+        // 显示后多次复校位置,对抗 WM 重摆;发现被移动则告警留痕
         let weak = popup.as_weak();
         let mut fixups = Vec::with_capacity(4);
         for delay_ms in [50u64, 120, 250, 500] {
@@ -95,6 +100,11 @@ pub fn spawn(title: String, body_html: String) {
                 std::time::Duration::from_millis(delay_ms),
                 move || {
                     if let Some(p) = weak.upgrade() {
+                        let expected = bottom_right(&area);
+                        let cur = p.window().position();
+                        if (cur.x - expected.0).abs() > 2 || (cur.y - expected.1).abs() > 2 {
+                            log::warn!("WM 重摆了弹窗(现 {cur:?}),复校回 {expected:?}",);
+                        }
                         position(&p, &area);
                     }
                 },
@@ -129,14 +139,20 @@ pub fn close_current() {
 /// 定位到屏幕工作区右下角(任务栏/dock 上方)。
 /// area 坐标已统一物理像素;弹窗逻辑尺寸按屏幕 scale 换算。
 fn position(popup: &PopupWindow, area: &crate::screen::WorkArea) {
-    let win = popup.window();
+    let (x, y) = bottom_right(area);
+    log::debug!("弹窗定位: area=({},{},{}x{}) pos=({x},{y})", area.x, area.y, area.w, area.h);
+    popup.window().set_position(slint::PhysicalPosition::new(x, y));
+}
+
+/// 工作区右下角落点(物理像素,已扣除边距)
+fn bottom_right(area: &crate::screen::WorkArea) -> (i32, i32) {
     let scale = area.scale.max(1.0);
     let w = W_LOGICAL * scale;
     let h = H_LOGICAL * scale;
-    let x = area.x + area.w - w - MARGIN * scale;
-    let y = area.y + area.h - h - MARGIN * scale;
-    log::debug!("弹窗定位: area=({},{},{}x{}) scale={scale} pos=({x},{y})", area.x, area.y, area.w, area.h);
-    win.set_position(slint::PhysicalPosition::new(x.round() as i32, y.round() as i32));
+    (
+        (area.x + area.w - w - MARGIN * scale).round() as i32,
+        (area.y + area.h - h - MARGIN * scale).round() as i32,
+    )
 }
 
 /// 解析 HTML 子集并逐行填充正文(行距/字号按行生效)
