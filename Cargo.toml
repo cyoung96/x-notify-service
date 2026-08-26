@@ -81,6 +81,7 @@ single_char_lifetime_names = "allow"
 min_ident_chars = "allow" # 错误绑定惯用 e
 default_numeric_fallback = "allow" # 字面量类型随上下文推断是惯用法(1.97 起对浮点也触发)
 host_endian_bytes = "allow" # X11 属性按连接字节序解析,from/to_ne_bytes 即协议要求
+little_endian_bytes = "allow" # X11 线序为小端,_NET_CLIENT_LIST 等按 le 解码是协议要求
 inline_modules = "allow" # 内联测试模块(mod tests {})是 Rust 惯例
 pattern_type_mismatch = "allow" # 已知误报多
 option_if_let_else = "allow" # 与 single_match_else 建议互相矛盾,且闭包化降低可读性
