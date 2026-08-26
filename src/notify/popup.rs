@@ -185,8 +185,8 @@ fn set_window_icons() {
             log::warn!("内嵌图标解码失败,跳过一档");
             continue;
         };
-        data.push(u32::try_from(img.0).unwrap_or(128));
-        data.push(u32::try_from(img.1).unwrap_or(128));
+        data.push(img.0);
+        data.push(img.1);
         data.extend(img.2);
     }
     let Ok((conn, screen_num)) = x11rb::connect(None) else {
