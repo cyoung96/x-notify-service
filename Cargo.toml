@@ -41,6 +41,7 @@ objc2-app-kit = { version = "0.3", features = ["NSScreen"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.13"
+png = "0.17"
 
 [build-dependencies]
 slint-build = "1"

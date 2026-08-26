@@ -80,6 +80,8 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
     }
     // 已映射后再切置顶:触发映射后的 ClientMessage,WM 才会应答
     popup.set_raise_above(true);
+    #[cfg(target_os = "linux")]
+    set_window_icons();
 
     let fixups = fixup_timers(&popup, area);
     CURRENT.with(|current| {
@@ -161,6 +163,97 @@ pub fn close_current() {
             log::debug!("弹窗被显式关闭");
         }
     });
+}
+
+/// 多档窗口图标:按 EWMH 偏好序(大→小)直写 `_NET_WM_ICON`,
+/// 任务栏按需取最近尺寸免缩放;属性由客户端持有,不经 WM 应答。
+/// 覆盖 slint 单图设置,find 窗口按标题(与 CI/xdotool 同口径)。
+#[cfg(target_os = "linux")]
+fn set_window_icons() {
+    use x11rb::connection::Connection as _;
+    use x11rb::protocol::xproto::ConnectionExt as _;
+
+    const ICONS: [&[u8]; 4] = [
+        include_bytes!("../../assets/icons/hicolor/x-notify-service-128.png"),
+        include_bytes!("../../assets/icons/hicolor/x-notify-service-48.png"),
+        include_bytes!("../../assets/icons/hicolor/x-notify-service-32.png"),
+        include_bytes!("../../assets/icons/hicolor/x-notify-service-16.png"),
+    ];
+    let mut data: Vec<u32> = Vec::new();
+    for bytes in ICONS {
+        let Ok(img) = decode_rgba(bytes) else {
+            log::warn!("内嵌图标解码失败,跳过一档");
+            continue;
+        };
+        data.push(u32::try_from(img.0).unwrap_or(128));
+        data.push(u32::try_from(img.1).unwrap_or(128));
+        data.extend(img.2);
+    }
+    let Ok((conn, screen_num)) = x11rb::connect(None) else {
+        log::debug!("无 X 连接,跳过多档图标");
+        return;
+    };
+    let root = conn.setup().roots[screen_num].root;
+    let Ok(tree) = conn.query_tree(root).ok().and_then(|c| c.reply().ok()) else {
+        return;
+    };
+    for wid in tree.children {
+        if window_title_is(&conn, wid, b"x-notify-service") {
+            let atom = conn
+                .intern_atom(false, b"_NET_WM_ICON")
+                .ok()
+                .and_then(|c| c.reply().ok())
+                .map(|a| a.atom);
+            let Some(atom) = atom else { return };
+            let _ = conn.change_property32(
+                x11rb::protocol::xproto::PropMode::REPLACE,
+                wid,
+                atom,
+                x11rb::protocol::xproto::AtomEnum::CARDINAL,
+                &data,
+            );
+            let _ = conn.flush();
+            log::debug!("已写入多档窗口图标({} 档)", ICONS.len());
+            return;
+        }
+    }
+}
+
+/// 解码 PNG 为 (宽, 高, ARGB32 像素)
+#[cfg(target_os = "linux")]
+fn decode_rgba(bytes: &[u8]) -> Option<(u32, u32, Vec<u32>)> {
+    let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    let mut reader = decoder.read_info().ok()?;
+    let mut buf = vec![0u8; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).ok()?;
+    let argb = buf
+        .chunks_exact(4)
+        .filter_map(|px| {
+            if let [r, g, b, a] = px {
+                Some(
+                    (u32::from(*a) << 24)
+                        | (u32::from(*r) << 16)
+                        | (u32::from(*g) << 8)
+                        | u32::from(*b),
+                )
+            } else {
+                None
+            }
+        })
+        .collect();
+    Some((info.width.min(512), info.height.min(512), argb))
+}
+
+#[cfg(target_os = "linux")]
+fn window_title_is(
+    conn: &x11rb::rust_connection::RustConnection,
+    wid: u32,
+    title: &[u8],
+) -> bool {
+    conn.get_property(false, wid, x11rb::protocol::xproto::AtomEnum::WM_NAME, x11rb::protocol::xproto::AtomEnum::STRING, 0, 64)
+        .ok()
+        .and_then(|c| c.reply().ok())
+        .is_some_and(|reply| reply.value == title)
 }
 
 /// 定位到屏幕工作区右下角(任务栏/dock 上方)。
