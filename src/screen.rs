@@ -67,8 +67,8 @@ pub fn work_area() -> Option<WorkArea> {
 
 #[cfg(target_os = "linux")]
 pub fn work_area() -> Option<WorkArea> {
-    use x11rb::connection::Connection;
-    use x11rb::protocol::xproto::ConnectionExt;
+    use x11rb::connection::Connection as _;
+    use x11rb::protocol::xproto::ConnectionExt as _;
 
     // Wayland(含 XWayland:DISPLAY/WAYLAND_DISPLAY 并存):协议禁止客户端自定位,
     // 弹窗会被合成器随手摆放(常为左上角),返回 None 走系统通知兜底
@@ -106,44 +106,45 @@ pub fn work_area() -> Option<WorkArea> {
             .ok()?;
         parse_workarea(&reply.value)
     })();
-    match wa {
-        Some((x, y, w, h)) => Some(WorkArea {
+    if let Some((x, y, w, h)) = wa {
+        Some(WorkArea {
             x,
             y,
             w,
             h,
             scale: 1.0,
-        }),
-        None => {
-            log::info!("WM 未提供 _NET_WORKAREA(精简桌面?),退回全屏尺寸定位");
-            Some(full)
-        }
+        })
+    } else {
+        log::info!("WM 未提供 _NET_WORKAREA(精简桌面?),退回全屏尺寸定位");
+        Some(full)
     }
 }
 
-/// 解析 _NET_WORKAREA 属性字节:CARDINAL 数组,取第一个桌面 x/y/w/h
+/// 解析 `_NET_WORKAREA` 属性字节:`CARDINAL` 数组,取第一个桌面 x/y/w/h
 /// (字节偏移 0/4/8/12);宽高为 0 视为无效,由调用方退回全屏
 #[cfg(target_os = "linux")]
-fn parse_workarea(v: &[u8]) -> Option<(f64, f64, f64, f64)> {
-    let u32at = |i: usize| -> Option<f64> {
-        Some(u32::from_ne_bytes(v.get(i..i + 4)?.try_into().ok()?) as f64)
+fn parse_workarea(bytes: &[u8]) -> Option<(f64, f64, f64, f64)> {
+    let u32at = |offset: usize| -> Option<f64> {
+        let raw: [u8; 4] = bytes.get(offset..offset + 4)?.try_into().ok()?;
+        Some(f64::from(u32::from_ne_bytes(raw)))
     };
     let (x, y, w, h) = (u32at(0)?, u32at(4)?, u32at(8)?, u32at(12)?);
     (w > 0.0 && h > 0.0).then_some((x, y, w, h))
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(target_os = "linux")]
+#[cfg(test)]
 mod tests {
     use super::*;
 
     /// 取第一个桌面的工作区(偏移 0/4/8/12 的 x/y/w/h)
     #[test]
     fn first_desktop_work_area() {
-        let mut v = vec![0u8; 16];
-        v[8..12].copy_from_slice(&1512u32.to_ne_bytes());
-        v[12..16].copy_from_slice(&907u32.to_ne_bytes());
+        let mut bytes = vec![0u8; 16];
+        bytes[8..12].copy_from_slice(&1512u32.to_ne_bytes());
+        bytes[12..16].copy_from_slice(&907u32.to_ne_bytes());
         assert_eq!(
-            parse_workarea(&v),
+            parse_workarea(&bytes),
             Some((0.0, 0.0, 1512.0, 907.0)),
             "应取出第 3/4 字段 w/h"
         );
@@ -152,13 +153,13 @@ mod tests {
     /// 非零原点:四个字段均按 4 字节步进解析
     #[test]
     fn nonzero_origin_four_byte_stride() {
-        let mut v = vec![0u8; 16];
-        v[0..4].copy_from_slice(&10u32.to_ne_bytes());
-        v[4..8].copy_from_slice(&20u32.to_ne_bytes());
-        v[8..12].copy_from_slice(&1000u32.to_ne_bytes());
-        v[12..16].copy_from_slice(&600u32.to_ne_bytes());
+        let mut bytes = vec![0u8; 16];
+        bytes[0..4].copy_from_slice(&10u32.to_ne_bytes());
+        bytes[4..8].copy_from_slice(&20u32.to_ne_bytes());
+        bytes[8..12].copy_from_slice(&1000u32.to_ne_bytes());
+        bytes[12..16].copy_from_slice(&600u32.to_ne_bytes());
         assert_eq!(
-            parse_workarea(&v),
+            parse_workarea(&bytes),
             Some((10.0, 20.0, 1000.0, 600.0)),
             "四字段按偏移依次解出"
         );

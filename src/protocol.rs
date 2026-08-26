@@ -64,12 +64,12 @@ pub fn unregister() -> Result<(), Box<dyn std::error::Error>> {
     let classes = hkcu.open_subkey_with_flags("Software\\Classes", KEY_WRITE)?;
     match classes.delete_subkey_all(format!("{SCHEME}\\shell\\open\\command")) {
         Ok(()) => {}
-        Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => return Err(e.into()),
     }
     match classes.delete_subkey_all(SCHEME) {
         Ok(()) => {}
-        Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => return Err(e.into()),
     }
     Ok(())
@@ -78,8 +78,10 @@ pub fn unregister() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(target_os = "linux")]
 fn desktop_path() -> std::path::PathBuf {
     dirs::home_dir()
-        .map(|h| h.join(".local/share/applications"))
-        .unwrap_or_else(|| std::path::PathBuf::from(".local/share/applications"))
+        .map_or_else(
+            || std::path::PathBuf::from(".local/share/applications"),
+            |h| h.join(".local/share/applications"),
+        )
         .join(format!("{}.desktop", crate::config::APP_DIR_NAME))
 }
 
@@ -135,7 +137,7 @@ pub fn register() -> Result<(), Box<dyn std::error::Error>> {
 pub fn unregister() -> Result<(), Box<dyn std::error::Error>> {
     match std::fs::remove_file(desktop_path()) {
         Ok(()) => {}
-        Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => return Err(e.into()),
     }
     if let Some(apps_dir) = desktop_path().parent() {
