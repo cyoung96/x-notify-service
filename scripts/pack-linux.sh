@@ -33,6 +33,7 @@ build_in_docker() { # $1=platform $2=archname
     mkdir -p .ci-cache/cargo target
     docker run --rm --platform "$1" -v "$PWD":/work -w /work \
         -v "$PWD/.ci-cache/cargo":/cargo \
+        -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
         "${proxy_env[@]+"${proxy_env[@]}"}" \
         -e CARGO_HOME=/cargo -e CARGO_TARGET_DIR=/work/target/linux-$2 \
         "$IMAGE" sh -exc '
@@ -53,6 +54,9 @@ build_in_docker() { # $1=platform $2=archname
         export PATH="/cargo/bin:$PATH"
         command -v cargo >/dev/null 2>&1 || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable --no-modify-path
         cargo build --release
+        # 容器内 root 写的文件会让 host 上 tar(actions/cache)Permission denied,
+        # 退出前改属主为 host 侧 runner 用户(UID 经 env 传入)
+        chown -R "$HOST_UID:$HOST_GID" /cargo /work/target 2>/dev/null || true
         '
 }
 
