@@ -55,7 +55,7 @@ Section "安装"
 
     ; 静默完成安装:注册自启动+协议并分离启动服务(install 立即返回,不阻塞安装器)
     Exec '"$INSTDIR\${APPNAME}.exe" install'
-    DetailPrint "安装完成。SDK 与演示页:安装目录内 sdk.js / demo.html / sdk-manual.md;"
+    DetailPrint "安装完成。SDK:安装目录内 sdk.js / sdk-manual.md"
     DetailPrint "快速测试:浏览器打开 http://127.0.0.1:17320/"
 SectionEnd
 
