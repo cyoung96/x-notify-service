@@ -231,7 +231,7 @@ fn decode_rgba(bytes: &[u8]) -> Option<(u32, u32, Vec<u32>)> {
     let mut buf = vec![0u8; reader.output_buffer_size()];
     let info = reader.next_frame(&mut buf).ok()?;
     let argb = buf
-        .chunks_exact(4)
+        .as_chunks::<4>()
         .filter_map(|px| {
             if let [r, g, b, a] = px {
                 Some(
