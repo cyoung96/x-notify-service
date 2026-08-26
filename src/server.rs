@@ -18,34 +18,70 @@ fn header(k: &str, v: &str) -> Header {
     Header::from_bytes(k.as_bytes(), v.as_bytes()).expect("非法响应头")
 }
 
-fn cors_headers() -> Vec<Header> {
-    vec![
-        header("Access-Control-Allow-Origin", "*"),
-        header("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
-        header("Access-Control-Allow-Headers", "Content-Type"),
-        // 新版 Chrome Local Network Access 预检需要;Chrome 87 忽略之
-        header("Access-Control-Allow-Private-Network", "true"),
-        header("Access-Control-Max-Age", "86400"),
-    ]
+/// 按配置与请求 Origin 计算 CORS 头:
+/// 白名单含 "*" → 全开;否则精确匹配请求 Origin 并回显;不匹配则不带
+/// Allow-Origin(浏览器将拦截响应读取,即拒绝该来源)。
+fn cors_headers(cfg: &Config, origin: Option<&str>) -> Vec<Header> {
+    let mut headers = Vec::with_capacity(5);
+    let allow = if cfg.cors_origins.iter().any(|o| o == "*") {
+        Some("*".to_string())
+    } else {
+        origin
+            .filter(|o| cfg.cors_origins.iter().any(|allowed| allowed == o))
+            .map(str::to_string)
+    };
+    if let Some(allow) = allow {
+        headers.push(header("Access-Control-Allow-Origin", &allow));
+    }
+    headers.push(header("Access-Control-Allow-Methods", "GET, POST, OPTIONS"));
+    let mut allow_headers = "Content-Type".to_string();
+    if cfg.token.is_some() {
+        allow_headers.push_str(", X-Token");
+    }
+    headers.push(header("Access-Control-Allow-Headers", &allow_headers));
+    if cfg.allow_private_network {
+        // 新版 Chrome Local Network Access 预检需要
+        headers.push(header("Access-Control-Allow-Private-Network", "true"));
+    }
+    headers.push(header("Access-Control-Max-Age", "86400"));
+    headers
 }
 
-fn send_json(req: Request, status: u16, body: String) {
+/// 鉴权:配置了 token 时要求 X-Token 头精确匹配;未配置恒通过(默认无鉴权)
+fn authorized(cfg: &Config, req: &Request) -> bool {
+    match &cfg.token {
+        None => true,
+        Some(expected) => req
+            .headers()
+            .iter()
+            .any(|h| h.field.equiv("X-Token") && h.value.as_str() == expected),
+    }
+}
+
+fn request_origin(req: &Request) -> Option<String> {
+    req.headers()
+        .iter()
+        .find(|h| h.field.equiv("Origin"))
+        .map(|h| h.value.as_str().to_string())
+}
+
+fn send_json(req: Request, cors: Vec<Header>, status: u16, body: String) {
     let mut response = Response::from_string(body)
         .with_status_code(status)
         .with_header(header("Content-Type", "application/json; charset=utf-8"));
-    for h in cors_headers() {
+    for h in cors {
         response = response.with_header(h);
     }
     let _ = req.respond(response);
 }
 
-fn send_error(req: Request, err: &api::NotifyError) {
+fn send_error(req: Request, cors: Vec<Header>, err: &api::NotifyError) {
     let body = serde_json::to_string(&ErrorResponse {
         ok: false,
         error: err.to_string(),
     })
     .unwrap_or_else(|_| r#"{"ok":false,"error":"internal"}"#.into());
-    send_json(req, err.status(), body);
+    send_json(req, cors, err.status(), body);
 }
 
 /// 绑定端口并启动 HTTP 服务:默认端口被占依次向后探测 10 个;
@@ -120,10 +156,11 @@ fn handle(rt: &Runtime, req: Request) {
     let Runtime { cfg, port } = rt;
     let method = req.method().clone();
     let path = req.url().split('?').next().unwrap_or("/").to_string();
+    let cors = cors_headers(cfg, request_origin(&req).as_deref());
 
     if method == Method::Options {
         let mut response = Response::empty(204u16);
-        for h in cors_headers() {
+        for h in cors {
             response = response.with_header(h);
         }
         let _ = req.respond(response);
@@ -132,20 +169,30 @@ fn handle(rt: &Runtime, req: Request) {
 
     match (method, path.as_str()) {
         (Method::Get, "/health") => {
+            // /health 保持开放:仅身份与端口,供 SDK 探测;无敏感动作
             let body = HealthResponse {
                 app: api::APP_ID,
                 version: api::VERSION,
                 port: *port,
             };
-            let _ = serde_json::to_string(&body).map(|b| send_json(req, 200, b));
+            let _ = serde_json::to_string(&body).map(|b| send_json(req, cors, 200, b));
         }
-        (Method::Post, "/notify") => handle_notify(cfg, req),
-        (Method::Post, "/close") => {
+        (Method::Post, "/notify") if authorized(cfg, &req) => handle_notify(cfg, cors, req),
+        (Method::Post, "/close") if authorized(cfg, &req) => {
             // 显式关闭当前弹窗(幂等);经事件循环投递到 GUI 线程
             if let Err(e) = slint::invoke_from_event_loop(notify::popup::close_current) {
                 log::warn!("关闭弹窗投递失败: {e}");
             }
-            send_json(req, 200, r#"{"ok":true}"#.into());
+            send_json(req, cors, 200, r#"{"ok":true}"#.into());
+        }
+        (Method::Post, "/notify" | "/close") => {
+            log::warn!("鉴权失败(X-Token 不匹配或缺失): {path}");
+            send_json(
+                req,
+                cors,
+                401,
+                r#"{"ok":false,"error":"unauthorized"}"#.into(),
+            );
         }
         _ => {
             let body = serde_json::to_string(&ErrorResponse {
@@ -153,30 +200,31 @@ fn handle(rt: &Runtime, req: Request) {
                 error: "not found".into(),
             })
             .unwrap_or_default();
-            send_json(req, 404, body);
+            send_json(req, cors, 404, body);
         }
     }
 }
 
-fn handle_notify(cfg: &Config, mut req: Request) {
+fn handle_notify(cfg: &Config, cors: Vec<Header>, mut req: Request) {
     let mut body = String::new();
     let mut reader = req.as_reader().take(MAX_BODY as u64 + 1);
     if reader.read_to_string(&mut body).is_err() {
         send_error(
             req,
+            cors,
             &api::NotifyError::BadJson("请求体不是有效的 UTF-8 文本".into()),
         );
         return;
     }
     if body.len() > MAX_BODY {
-        send_error(req, &api::NotifyError::BadJson("请求体过大".into()));
+        send_error(req, cors, &api::NotifyError::BadJson("请求体过大".into()));
         return;
     }
     // 解析+校验语义归 api 模块;这里只做传输层(读体/限长/响应)
     let parsed = match api::NotifyRequest::from_json(&body).and_then(|r| r.validate().map(|()| r)) {
         Ok(r) => r,
         Err(err) => {
-            send_error(req, &err);
+            send_error(req, cors, &err);
             return;
         }
     };
@@ -189,7 +237,11 @@ fn handle_notify(cfg: &Config, mut req: Request) {
         parsed.title.chars().take(50).collect::<String>()
     );
     match serde_json::to_string(&resp) {
-        Ok(b) => send_json(req, 200, b),
-        Err(_) => send_error(req, &api::NotifyError::BadJson("响应序列化失败".into())),
+        Ok(b) => send_json(req, cors, 200, b),
+        Err(_) => send_error(
+            req,
+            cors,
+            &api::NotifyError::BadJson("响应序列化失败".into()),
+        ),
     }
 }

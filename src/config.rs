@@ -84,6 +84,12 @@ pub struct Config {
     pub log_level: String,
     pub log_dir: PathBuf,
     pub no_popup: bool,
+    /// CORS 允许的 Origin(精确匹配);`["*"]` 表示全开(默认)
+    pub cors_origins: Vec<String>,
+    /// 是否应答 Access-Control-Allow-Private-Network(新版 Chrome LNA 预检用)
+    pub allow_private_network: bool,
+    /// 非空时 /notify 与 /close 需带匹配的 X-Token 头;空 = 无鉴权(默认)
+    pub token: Option<String>,
     /// Windows 兜底通知的 AppId(仅 Windows 读取)
     #[cfg_attr(not(windows), allow(dead_code))]
     pub app_id: Option<String>,
@@ -96,6 +102,9 @@ struct FileConfig {
     log_dir: Option<PathBuf>,
     no_popup: Option<bool>,
     app_id: Option<String>,
+    cors_origins: Option<Vec<String>>,
+    allow_private_network: Option<bool>,
+    token: Option<String>,
 }
 
 /// 平台标准日志目录
@@ -145,6 +154,9 @@ pub fn resolve(cli: &Cli) -> Config {
             .or(file.log_dir)
             .unwrap_or_else(default_log_dir),
         no_popup: cli.no_popup || file.no_popup.unwrap_or(false),
+        cors_origins: file.cors_origins.unwrap_or_else(|| vec!["*".into()]),
+        allow_private_network: file.allow_private_network.unwrap_or(true),
+        token: file.token.filter(|t| !t.is_empty()),
         app_id: cli.app_id.clone().or(file.app_id),
     }
 }

@@ -88,6 +88,17 @@ fn paths(cfg: &config::Config) {
         .map_or(0, |d| d.filter_map(std::result::Result::ok).count());
     println!("日志目录: {}({logs} 个文件)", cfg.log_dir.display());
     println!("数据目录: {}", single::data_dir().display());
+    let cors = if cfg.cors_origins.iter().any(|o| o == "*") {
+        "全开(*)".to_string()
+    } else {
+        format!("白名单 {} 项", cfg.cors_origins.len())
+    };
+    let auth = if cfg.token.is_some() {
+        "已启用(X-Token)"
+    } else {
+        "未启用(默认)"
+    };
+    println!("安全配置: CORS={cors}, 鉴权={auth}");
 }
 
 fn registrations() {
