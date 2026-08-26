@@ -85,6 +85,7 @@ inline_modules = "allow" # 内联测试模块(mod tests {})是 Rust 惯例
 pattern_type_mismatch = "allow" # 已知误报多
 option_if_let_else = "allow" # 与 single_match_else 建议互相矛盾,且闭包化降低可读性
 non_ascii_literal = "allow" # 中文用户可见文案是产品需求
+doc_markdown = "allow" # 标识符反引号属风格议题,不应阻断流水线
 doc_paragraphs_missing_punctuation = "allow" # 中文注释不强制句末标点
 as_conversions = "allow" # 布局/几何换算密集;具体危险转换由 cast_* 系列兜底
 float_arithmetic = "allow" # 弹窗定位几何数学必需

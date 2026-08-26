@@ -165,9 +165,8 @@ pub fn close_current() {
     });
 }
 
-/// 多档窗口图标:按 EWMH 偏好序(大→小)直写 `_NET_WM_ICON`,
-/// 任务栏按需取最近尺寸免缩放;属性由客户端持有,不经 WM 应答。
-/// 覆盖 slint 单图设置,find 窗口按标题(与 CI/xdotool 同口径)。
+/// 直写多档窗口图标:slint 只能设单张,这里按大→小补齐四档,
+/// 任务栏取最近尺寸免缩放
 #[cfg(target_os = "linux")]
 fn set_window_icons() {
     use x11rb::connection::Connection as _;
@@ -223,7 +222,7 @@ fn set_window_icons() {
     }
 }
 
-/// 解码 PNG 为 (宽, 高, ARGB32 像素)
+/// 解码内嵌 PNG 为宽高与 ARGB 像素
 #[cfg(target_os = "linux")]
 fn decode_rgba(bytes: &[u8]) -> Option<(u32, u32, Vec<u32>)> {
     let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
@@ -241,8 +240,7 @@ fn decode_rgba(bytes: &[u8]) -> Option<(u32, u32, Vec<u32>)> {
     Some((info.width.min(512), info.height.min(512), argb))
 }
 
-/// 目标窗口判定:`WM_NAME`(STRING) 或 `_NET_WM_NAME`(UTF8_STRING) 等于本服务名。
-/// winit 在不同后端路径设置的名称属性不一,两路兜底
+/// 按窗口名识别本服务窗口:winit 设置的名称属性类型不定,两种都查
 #[cfg(target_os = "linux")]
 fn window_matches(conn: &x11rb::rust_connection::RustConnection, wid: u32) -> bool {
     use x11rb::protocol::xproto::ConnectionExt as _;
