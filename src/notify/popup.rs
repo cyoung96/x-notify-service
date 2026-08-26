@@ -78,6 +78,8 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
         crate::notify::fallback::show_raw(title, &html::to_plain_text(body_html));
         return;
     }
+    // 已映射后再切置顶:触发映射后的 ClientMessage,WM 才会应答
+    popup.set_raise_above(true);
 
     let fixups = fixup_timers(&popup, area);
     CURRENT.with(|current| {
