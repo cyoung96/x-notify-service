@@ -60,7 +60,13 @@ if command -v xdotool >/dev/null 2>&1; then
             echo "弹窗实际位置: ($WX,$WY),期望: (899,580),偏差: (${DX},${DY})"
             echo "INFO: _NET_CLIENT_LIST=$(xprop -root _NET_CLIENT_LIST 2>/dev/null | head -c 90)"
             echo "INFO: WM_CLASS=$(xprop -id "$WIN" WM_CLASS 2>/dev/null)"
-            ICONS_N=$(xprop -id "$WIN" _NET_WM_ICON 2>/dev/null | grep -o "Icon (" | wc -l | tr -d ' ')
+            # 图标写入经复校定时器异步落笔,轮询最多 3s 消抖(曾同代码时绿时红)
+            ICONS_N=0
+            for _ in $(seq 1 15); do
+                ICONS_N=$(xprop -id "$WIN" _NET_WM_ICON 2>/dev/null | grep -o "Icon (" | wc -l | tr -d ' ')
+                [ "$ICONS_N" -ge 3 ] && break
+                sleep 0.2
+            done
             if [ "$ICONS_N" -ge 3 ]; then
                 echo "PASS: 窗口图标多档($ICONS_N)"
             else

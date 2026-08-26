@@ -71,6 +71,9 @@ jobs:
         with:
           node-version: 24
       - run: npm install -g pnpm@10
+      # NSIS 预装于 windows runner 但不在 PATH
+      - run: 'echo "C:\Program Files (x86)\NSIS" >> $GITHUB_PATH'
+        shell: bash
       - run: bash scripts/pack-windows.sh x86_64-pc-windows-msvc
         shell: bash
       # 产物冒烟:GUI 子系统经 AttachConsole 回显到本控制台
