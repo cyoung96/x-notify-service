@@ -4,6 +4,10 @@ use std::sync::Arc;
 use tiny_http::{Header, Method, Request, Response, Server};
 
 use crate::api::{self, ErrorResponse, HealthResponse, NotifyResponse};
+
+/// 演示页随二进制内嵌:装完浏览器打开 http://127.0.0.1:{port}/ 即测,无需找文件
+const DEMO_HTML: &str = include_str!("../assets/demo.html");
+
 use crate::config::Config;
 use crate::notify;
 
@@ -168,6 +172,26 @@ fn handle(rt: &Runtime, req: Request) {
     }
 
     match (method, path.as_str()) {
+        (Method::Get, "/") => {
+            let mut response = Response::from_string(DEMO_HTML)
+                .with_status_code(200)
+                .with_header(header("Content-Type", "text/html; charset=utf-8"));
+            for h in cors {
+                response = response.with_header(h);
+            }
+            let _ = req.respond(response);
+        }
+        (Method::Get, "/sdk.js") => {
+            // SDK 产物由 build.rs 复制到 OUT_DIR(纯 cargo build 时为占位)
+            let body = include_str!(concat!(env!("OUT_DIR"), "/embedded-sdk.js"));
+            let mut response = Response::from_string(body)
+                .with_status_code(200)
+                .with_header(header("Content-Type", "text/javascript; charset=utf-8"));
+            for h in cors {
+                response = response.with_header(h);
+            }
+            let _ = req.respond(response);
+        }
         (Method::Get, "/health") => {
             // /health 保持开放:仅身份与端口,供 SDK 探测;无敏感动作
             let body = HealthResponse {

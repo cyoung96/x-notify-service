@@ -26,6 +26,10 @@ cleanup; sleep 0.5
 for _ in $(seq 1 50); do curl -sf "$API/health" >/dev/null 2>&1 && break; sleep 0.2; done
 
 H=$(curl -s "$API/health")
+DEMO=$(curl -s http://127.0.0.1:17320/ | head -c 200)
+echo "$DEMO" | grep -q "<!doctype html>" && echo "PASS: 内嵌演示页可访问" || { echo "FAIL: 演示页缺失"; exit 1; }
+CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:17320/sdk.js)
+assert "内嵌 sdk.js 可访问" "$CODE" "200"
 assert "health 应用身份" "$(echo "$H" | jq -r .app)" "x-notify-service"
 
 V=$(curl -s -X POST "$API/notify" -d '{"title":"集成","body":"内容"}' | jq -r .via)
