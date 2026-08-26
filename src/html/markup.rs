@@ -1,6 +1,8 @@
-//! 逐行输出 Slint StyledText 的 markdown 标记。
+//! 逐行输出 Slint `StyledText` 的 markdown 标记。
 //! 加粗用 `**…**`,颜色用 `<font color="#rrggbb">`;字号不进标记
-//! (StyledText 不支持行内字号),由调用方按行设置元素字号。
+//! (`StyledText` 不支持行内字号),由调用方按行设置元素字号。
+
+use std::fmt::Write as _;
 
 use super::wrap::WrappedLines;
 
@@ -16,7 +18,7 @@ pub(super) fn styled_lines(lines: &WrappedLines) -> Vec<(String, Option<u16>)> {
                     continue;
                 }
                 if let Some((r, g, b)) = run.style.color {
-                    out.push_str(&format!("<font color=\"#{r:02x}{g:02x}{b:02x}\">"));
+                    let _ = write!(out, "<font color=\"#{r:02x}{g:02x}{b:02x}\">");
                 }
                 if run.style.bold {
                     out.push_str("**");

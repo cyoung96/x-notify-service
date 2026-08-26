@@ -25,7 +25,7 @@ impl Presenter for PopupPresenter {
         }
         let title = title.to_string();
         let body = body_html.to_string();
-        match slint::invoke_from_event_loop(move || popup::spawn(title, body)) {
+        match slint::invoke_from_event_loop(move || popup::spawn(&title, &body, false)) {
             Ok(()) => true,
             Err(e) => {
                 log::warn!("弹窗投递失败,降级系统通知: {e}");

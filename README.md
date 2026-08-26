@@ -18,6 +18,11 @@
 x-notify-service              # 运行服务(常驻进程;无参数即此模式)
 x-notify-service install      # 注册开机自启 + x-notify:// 协议,并启动服务
 x-notify-service uninstall    # 清理全部注册项
+x-notify-service info         # 诊断快照:实例/端口/显示环境/工作区/注册状态(只读)
+x-notify-service start|stop|restart   # 服务生命周期(幂等;stop 经端口文件 pid + 身份校验)
+x-notify-service notify -t "标题"      # 本机手测一条通知(不经 HTTP)
+x-notify-service notify -t "标题" -f   # 同上,强制走系统通知兜底
+x-notify-service close        # 关闭当前弹窗(幂等)
 ```
 
 - 全部注册均为**用户级**(Windows HKCU / macOS LaunchAgent / Linux XDG),无需管理员/root。

@@ -11,13 +11,26 @@ pub struct WorkArea {
 }
 
 #[cfg(windows)]
+// 取屏 FFI 是 unsafe 的唯一入口;仅调用 SystemParametersInfoW 读取工作区矩形
+#[allow(unsafe_code)]
 pub fn work_area() -> Option<WorkArea> {
     use windows_sys::Win32::Foundation::RECT;
     use windows_sys::Win32::UI::WindowsAndMessaging::{SPI_GETWORKAREA, SystemParametersInfoW};
 
-    let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    // SAFETY: 入参为常量标志与指向 RECT 的可写指针,函数无其他副作用
     let ok = unsafe {
-        SystemParametersInfoW(SPI_GETWORKAREA, 0, &mut rect as *mut RECT as *mut core::ffi::c_void, 0)
+        SystemParametersInfoW(
+            SPI_GETWORKAREA,
+            0,
+            &mut rect as *mut RECT as *mut core::ffi::c_void,
+            0,
+        )
     };
     if ok == 0 {
         return None;
@@ -68,13 +81,17 @@ pub fn work_area() -> Option<WorkArea> {
     let full = WorkArea {
         x: 0.0,
         y: 0.0,
-        w: screen.width_in_pixels as f64,
-        h: screen.height_in_pixels as f64,
+        w: f64::from(screen.width_in_pixels),
+        h: f64::from(screen.height_in_pixels),
         scale: 1.0,
     };
     // 尝试读 _NET_WORKAREA(第一个桌面的 x/y/w/h)
     let wa = (|| -> Option<(f64, f64, f64, f64)> {
-        let atom = conn.intern_atom(false, b"_NET_WORKAREA").ok()?.reply().ok()?;
+        let atom = conn
+            .intern_atom(false, b"_NET_WORKAREA")
+            .ok()?
+            .reply()
+            .ok()?;
         let reply = conn
             .get_property(
                 false,
@@ -90,7 +107,13 @@ pub fn work_area() -> Option<WorkArea> {
         parse_workarea(&reply.value)
     })();
     match wa {
-        Some((x, y, w, h)) => Some(WorkArea { x, y, w, h, scale: 1.0 }),
+        Some((x, y, w, h)) => Some(WorkArea {
+            x,
+            y,
+            w,
+            h,
+            scale: 1.0,
+        }),
         None => {
             log::info!("WM 未提供 _NET_WORKAREA(精简桌面?),退回全屏尺寸定位");
             Some(full)
@@ -102,11 +125,10 @@ pub fn work_area() -> Option<WorkArea> {
 /// (字节偏移 0/4/8/12);宽高为 0 视为无效,由调用方退回全屏
 #[cfg(target_os = "linux")]
 fn parse_workarea(v: &[u8]) -> Option<(f64, f64, f64, f64)> {
-    if v.len() < 16 {
-        return None;
-    }
-    let u32at = |i: usize| u32::from_ne_bytes([v[i], v[i + 1], v[i + 2], v[i + 3]]) as f64;
-    let (x, y, w, h) = (u32at(0), u32at(4), u32at(8), u32at(12));
+    let u32at = |i: usize| -> Option<f64> {
+        Some(u32::from_ne_bytes(v.get(i..i + 4)?.try_into().ok()?) as f64)
+    };
+    let (x, y, w, h) = (u32at(0)?, u32at(4)?, u32at(8)?, u32at(12)?);
     (w > 0.0 && h > 0.0).then_some((x, y, w, h))
 }
 
@@ -114,27 +136,38 @@ fn parse_workarea(v: &[u8]) -> Option<(f64, f64, f64, f64)> {
 mod tests {
     use super::*;
 
+    /// 取第一个桌面的工作区(偏移 0/4/8/12 的 x/y/w/h)
     #[test]
-    fn 取第一个桌面工作区() {
+    fn first_desktop_work_area() {
         let mut v = vec![0u8; 16];
         v[8..12].copy_from_slice(&1512u32.to_ne_bytes());
         v[12..16].copy_from_slice(&907u32.to_ne_bytes());
-        assert_eq!(parse_workarea(&v), Some((0.0, 0.0, 1512.0, 907.0)));
+        assert_eq!(
+            parse_workarea(&v),
+            Some((0.0, 0.0, 1512.0, 907.0)),
+            "应取出第 3/4 字段 w/h"
+        );
     }
 
+    /// 非零原点:四个字段均按 4 字节步进解析
     #[test]
-    fn 非零原点按四字节步进() {
+    fn nonzero_origin_four_byte_stride() {
         let mut v = vec![0u8; 16];
         v[0..4].copy_from_slice(&10u32.to_ne_bytes());
         v[4..8].copy_from_slice(&20u32.to_ne_bytes());
         v[8..12].copy_from_slice(&1000u32.to_ne_bytes());
         v[12..16].copy_from_slice(&600u32.to_ne_bytes());
-        assert_eq!(parse_workarea(&v), Some((10.0, 20.0, 1000.0, 600.0)));
+        assert_eq!(
+            parse_workarea(&v),
+            Some((10.0, 20.0, 1000.0, 600.0)),
+            "四字段按偏移依次解出"
+        );
     }
 
+    /// 全零宽高或字节长度不足均视为无效
     #[test]
-    fn 全零或长度不足视为无效() {
-        assert_eq!(parse_workarea(&[0u8; 16]), None);
-        assert_eq!(parse_workarea(&[0u8; 8]), None);
+    fn all_zero_or_short_input_is_invalid() {
+        assert_eq!(parse_workarea(&[0u8; 16]), None, "全零宽高无效");
+        assert_eq!(parse_workarea(&[0u8; 8]), None, "长度不足无效");
     }
 }

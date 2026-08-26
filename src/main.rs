@@ -4,18 +4,37 @@
 mod api;
 mod autostart;
 mod config;
+mod ctl;
 mod html;
+mod info;
 mod install;
 mod logging;
 mod notify;
 mod protocol;
 mod screen;
+mod send;
 mod server;
 mod single;
 
-use clap::Parser;
+use clap::Parser as _;
 
-slint::include_modules!();
+// Slint 生成代码(OUT_DIR/popup.rs)是机器产物:保留 correctness 审查,
+// 其余风格/限制组豁免(直接标在宏调用上的 allow 会被 rustc 忽略,必须包 mod);
+// unsafe_code 放行因跨平台生成物(软件渲染)内含既定 unsafe
+#[allow(
+    unsafe_code,
+    clippy::style,
+    clippy::complexity,
+    clippy::perf,
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::restriction,
+    clippy::cargo
+)]
+mod slint_generated {
+    slint::include_modules!();
+}
+pub use slint_generated::*;
 
 fn main() {
     let cli = config::Cli::parse();
@@ -24,7 +43,7 @@ fn main() {
 
     match cli.cmd {
         // 无参数:运行服务(即常驻后台进程本体)
-        None => serve(cfg),
+        None => serve(&cfg),
         Some(config::Command::Install) => {
             // 注册 + 分离启动服务后立即退出,供安装器/脚本调用不阻塞
             install::install();
@@ -32,11 +51,21 @@ fn main() {
         Some(config::Command::Uninstall) => {
             install::uninstall();
         }
+        Some(config::Command::Info) => {
+            info::run(&cfg);
+        }
+        Some(config::Command::Start) => ctl::start(),
+        Some(config::Command::Stop) => ctl::stop(),
+        Some(config::Command::Restart) => ctl::restart(),
+        Some(config::Command::Notify { title, fallback }) => {
+            send::run(&cfg, title, fallback);
+        }
+        Some(config::Command::Close) => send::close(),
     }
 }
 
 /// 服务主流程:单实例 → GUI 探测(先于 HTTP,避免启动早期请求降级)→ 绑端口 → 事件循环
-fn serve(cfg: config::Config) -> ! {
+fn serve(cfg: &config::Config) {
     log::info!(
         "x-notify-service {} 启动(默认端口 {},日志目录 {})",
         api::VERSION,
@@ -46,7 +75,7 @@ fn serve(cfg: config::Config) -> ! {
 
     if !single::acquire_lock() {
         log::info!("已有实例在运行,本进程静默退出");
-        std::process::exit(0);
+        return;
     }
 
     // 先探测 GUI 并落定 POPUP_AVAILABLE,再开 HTTP:杜绝启动早期请求撞上降级窗口
@@ -66,6 +95,7 @@ fn serve(cfg: config::Config) -> ! {
 
     if !gui_ok {
         // 无 GUI 模式:主线程挂起,HTTP 工作线程继续服务
+        #[allow(clippy::infinite_loop)]
         loop {
             std::thread::park();
         }
@@ -75,5 +105,5 @@ fn serve(cfg: config::Config) -> ! {
     if let Err(e) = slint::run_event_loop_until_quit() {
         log::error!("事件循环异常退出: {e}");
     }
-    std::process::exit(0);
+    // 返回 main 自然退出(code 0)
 }

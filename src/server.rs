@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::Read as _;
 use std::sync::Arc;
 
 use tiny_http::{Header, Method, Request, Response, Server};
@@ -12,6 +12,8 @@ const MAX_BODY: usize = 64 * 1024;
 /// 本地单用户场景串行处理足够
 const WORKERS: usize = 1;
 
+// 入参均为 ASCII 字面量,from_bytes 实际不可失败
+#[allow(clippy::expect_used)]
 fn header(k: &str, v: &str) -> Header {
     Header::from_bytes(k.as_bytes(), v.as_bytes()).expect("非法响应头")
 }
@@ -38,30 +40,40 @@ fn send_json(req: Request, status: u16, body: String) {
 }
 
 fn send_error(req: Request, err: &api::NotifyError) {
-    let body = serde_json::to_string(&ErrorResponse { ok: false, error: err.to_string() })
-        .unwrap_or_else(|_| r#"{"ok":false,"error":"internal"}"#.into());
+    let body = serde_json::to_string(&ErrorResponse {
+        ok: false,
+        error: err.to_string(),
+    })
+    .unwrap_or_else(|_| r#"{"ok":false,"error":"internal"}"#.into());
     send_json(req, err.status(), body);
 }
 
 /// 绑定端口并启动 HTTP 服务:默认端口被占依次向后探测 10 个;
 /// 全部被占则绑定随机端口(此时浏览器无法发现,仅系统通知可用)。
 /// 返回实际端口。
+// 工作线程启动失败属致命错误,panic 即失败退出
+#[allow(clippy::expect_used)]
 pub fn start(cfg: Config) -> u16 {
     let (server, used_port) = bind_with_fallback(cfg.port);
     let server = Arc::new(server);
     // 运行期共享状态:/health 报告实际监听端口(可能与配置端口不同)
-    let state = Arc::new(Runtime { cfg, port: used_port });
+    let state = Arc::new(Runtime {
+        cfg,
+        port: used_port,
+    });
     for i in 0..WORKERS {
         let server = Arc::clone(&server);
         let state = Arc::clone(&state);
         std::thread::Builder::new()
             .name(format!("http-{i}"))
-            .spawn(move || loop {
-                match server.recv() {
-                    Ok(req) => handle(&state, req),
-                    Err(e) => {
-                        log::error!("接收请求失败: {e}");
-                        return;
+            .spawn(move || {
+                loop {
+                    match server.recv() {
+                        Ok(req) => handle(&state, req),
+                        Err(e) => {
+                            log::error!("接收请求失败: {e}");
+                            return;
+                        }
                     }
                 }
             })
@@ -72,6 +84,8 @@ pub fn start(cfg: Config) -> u16 {
 
 /// 绑定 127.0.0.1:默认端口起向后探测 10 个;全被占则让 OS 随机分配
 /// (此时浏览器无法发现服务,仅系统通知可用)。
+// 连随机端口都绑定失败属环境级故障,panic 即失败退出
+#[allow(clippy::expect_used)]
 fn bind_with_fallback(default_port: u16) -> (Server, u16) {
     for port in default_port..default_port.saturating_add(10) {
         if let Ok(server) = Server::http(("127.0.0.1", port)) {
@@ -87,7 +101,7 @@ fn bind_with_fallback(default_port: u16) -> (Server, u16) {
         .map_err(|e| e.to_string())
         .and_then(|a| Server::http(("127.0.0.1", a.port())).map_err(|e| e.to_string()))
         .expect("绑定随机端口失败");
-    let port = server.server_addr().to_ip().map(|a| a.port()).unwrap_or(0);
+    let port = server.server_addr().to_ip().map_or(0, |a| a.port());
     log::warn!(
         "端口 {}~{} 全部被占用,已绑定随机端口 {port},浏览器将无法自动发现服务",
         default_port,
@@ -108,7 +122,7 @@ fn handle(rt: &Runtime, req: Request) {
     let path = req.url().split('?').next().unwrap_or("/").to_string();
 
     if method == Method::Options {
-        let mut response = Response::empty(204);
+        let mut response = Response::empty(204u16);
         for h in cors_headers() {
             response = response.with_header(h);
         }
@@ -134,9 +148,12 @@ fn handle(rt: &Runtime, req: Request) {
             send_json(req, 200, r#"{"ok":true}"#.into());
         }
         _ => {
-            let body = serde_json::to_string(&ErrorResponse { ok: false, error: "not found".into() })
-                .unwrap_or_default();
-            send_json(req, 404, body)
+            let body = serde_json::to_string(&ErrorResponse {
+                ok: false,
+                error: "not found".into(),
+            })
+            .unwrap_or_default();
+            send_json(req, 404, body);
         }
     }
 }
@@ -145,7 +162,10 @@ fn handle_notify(cfg: &Config, mut req: Request) {
     let mut body = String::new();
     let mut reader = req.as_reader().take(MAX_BODY as u64 + 1);
     if reader.read_to_string(&mut body).is_err() {
-        send_error(req, &api::NotifyError::BadJson("请求体不是有效的 UTF-8 文本".into()));
+        send_error(
+            req,
+            &api::NotifyError::BadJson("请求体不是有效的 UTF-8 文本".into()),
+        );
         return;
     }
     if body.len() > MAX_BODY {

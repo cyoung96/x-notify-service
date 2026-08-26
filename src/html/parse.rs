@@ -56,23 +56,26 @@ pub(super) fn parse_logical_lines(html: &str) -> LogicalLines {
                 continue;
             }
             apply_tag(
-                &name, &attrs, closing, &mut lines, &mut text, &mut bold_depth,
-                &mut color_stack, &mut size_stack,
+                &name,
+                &attrs,
+                closing,
+                &mut lines,
+                &mut text,
+                &mut bold_depth,
+                &mut color_stack,
+                &mut size_stack,
             );
             i = next;
             continue;
         }
         if c == '&' {
             let (decoded, next) = read_entity(&chars, i);
-            match decoded {
-                Some(ch) => {
-                    text.push(ch);
-                    i = next;
-                }
-                None => {
-                    text.push('&');
-                    i += 1;
-                }
+            if let Some(ch) = decoded {
+                text.push(ch);
+                i = next;
+            } else {
+                text.push('&');
+                i += 1;
             }
             continue;
         }
@@ -108,12 +111,16 @@ fn current_style(
 fn append_run(line: Option<&mut Line>, text: &mut String, st: RunStyle) {
     let Some(line) = line else { return };
     if let Some(last) = line.0.last_mut()
-        && last.style == st {
-            last.text.push_str(text);
-            text.clear();
-            return;
-        }
-    line.0.push(Run { text: std::mem::take(text), style: st });
+        && last.style == st
+    {
+        last.text.push_str(text);
+        text.clear();
+        return;
+    }
+    line.0.push(Run {
+        text: std::mem::take(text),
+        style: st,
+    });
 }
 
 /// 读取一个标签,返回 (小写标签名, 原始属性串, 是否闭合, 下一个下标)
@@ -174,8 +181,11 @@ fn apply_tag(
                     size_stack.push(None);
                 }
             } else {
-                let color = parse_color_attr(attrs).or(*color_stack.last().unwrap_or(&None));
-                let size = parse_size_attr(attrs).or(*size_stack.last().unwrap_or(&None));
+                // 未显式指定时继承外层样式(栈顶)
+                let inherited_color = color_stack.last().copied().flatten();
+                let inherited_size = size_stack.last().copied().flatten();
+                let color = parse_color_attr(attrs).or(inherited_color);
+                let size = parse_size_attr(attrs).or(inherited_size);
                 color_stack.push(color);
                 size_stack.push(size);
             }
@@ -204,10 +214,12 @@ fn read_entity(chars: &[char], from: usize) -> (Option<char>, usize) {
         ent.push(chars[k]);
         k += 1;
     }
-    if k < chars.len() && chars[k] == ';'
-        && let Some(ch) = decode_entity(&ent) {
-            return (Some(ch), k + 1);
-        }
+    if k < chars.len()
+        && chars[k] == ';'
+        && let Some(ch) = decode_entity(&ent)
+    {
+        return (Some(ch), k + 1);
+    }
     (None, from)
 }
 
@@ -226,7 +238,7 @@ fn decode_entity(ent: &str) -> Option<char> {
             } else {
                 num.parse::<u32>().ok()
             };
-            code.and_then(char::from_u32)
+            char::from_u32(code?)
         }
     }
 }
@@ -242,9 +254,11 @@ fn parse_size_attr(attrs: &str) -> Option<u16> {
     let lower = attrs.to_ascii_lowercase();
     let pos = lower.find("font-size").or_else(|| lower.find("size"))?;
     let value = extract_attr_value(&attrs[pos..])?;
-    let digits: String = value.chars().filter(|c| c.is_ascii_digit()).collect();
+    let digits: String = value.chars().filter(char::is_ascii_digit).collect();
     let size: u16 = digits.parse().ok()?;
-    (FONT_SIZE_MIN..=FONT_SIZE_MAX).contains(&size).then_some(size)
+    (FONT_SIZE_MIN..=FONT_SIZE_MAX)
+        .contains(&size)
+        .then_some(size)
 }
 
 /// 从 "xxx=值 ..." 形式的属性串中提取值(支持引号与裸值)
@@ -254,14 +268,16 @@ fn extract_attr_value(s: &str) -> Option<String> {
     let mut quote: Option<char> = None;
     for (idx, ch) in s.char_indices().skip(5) {
         match (quote, ch) {
-            (None, c) if c.is_whitespace() || c == '=' || c == ':' => continue,
+            (None, c) if c.is_whitespace() || c == '=' || c == ':' => {}
             (None, c) if c == '"' || c == '\'' => {
                 quote = Some(c);
                 start = Some(idx + c.len_utf8());
             }
             (None, _) => {
                 start = Some(idx);
-                end = s[idx..].find(char::is_whitespace).map(|p| idx + p).unwrap_or(s.len());
+                end = s[idx..]
+                    .find(char::is_whitespace)
+                    .map_or(s.len(), |p| idx + p);
                 break;
             }
             (Some(q), c) if c == q => {
@@ -278,17 +294,18 @@ fn parse_color_value(v: &str) -> Option<(u8, u8, u8)> {
     let v = v.trim().trim_end_matches(';');
     if let Some(hex) = v.strip_prefix('#') {
         let b = hex.as_bytes();
-        let all_hex = b.iter().all(|c| c.is_ascii_hexdigit());
+        let all_hex = b.iter().all(u8::is_ascii_hexdigit);
         return match b.len() {
             3 if all_hex => {
+                assert_eq!(b.len(), 3, "hex 颜色长度守卫"); // 多次索引前置断言,辅助静态验证
                 let d = |hi: u8, lo: u8| {
                     u8::from_str_radix(&format!("{}{}", hi as char, lo as char), 16).ok()
                 };
                 Some((d(b[0], b[0])?, d(b[1], b[1])?, d(b[2], b[2])?))
             }
             6 if all_hex => {
-                let h = |r: std::ops::Range<usize>| {
-                    std::str::from_utf8(&b[r]).ok().and_then(|s| u8::from_str_radix(s, 16).ok())
+                let h = |r: std::ops::Range<usize>| -> Option<u8> {
+                    u8::from_str_radix(std::str::from_utf8(&b[r]).ok()?, 16).ok()
                 };
                 Some((h(0..2)?, h(2..4)?, h(4..6)?))
             }

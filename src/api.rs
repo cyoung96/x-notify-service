@@ -29,10 +29,10 @@ pub enum NotifyVia {
 }
 
 impl NotifyVia {
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
-            NotifyVia::Popup => "popup",
-            NotifyVia::System => "system",
+            Self::Popup => "popup",
+            Self::System => "system",
         }
     }
 }
@@ -61,10 +61,10 @@ pub enum NotifyError {
 }
 
 impl NotifyError {
-    pub fn status(&self) -> u16 {
+    pub const fn status(&self) -> u16 {
         match self {
-            NotifyError::BadJson(_) => 400,
-            NotifyError::EmptyTitle | NotifyError::TitleTooLong | NotifyError::BodyTooLong => 422,
+            Self::BadJson(_) => 400,
+            Self::EmptyTitle | Self::TitleTooLong | Self::BodyTooLong => 422,
         }
     }
 }
@@ -72,10 +72,10 @@ impl NotifyError {
 impl std::fmt::Display for NotifyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NotifyError::BadJson(e) => write!(f, "JSON 解析失败: {e}"),
-            NotifyError::EmptyTitle => write!(f, "title 不能为空"),
-            NotifyError::TitleTooLong => write!(f, "title 过长(最多 {TITLE_MAX} 字符)"),
-            NotifyError::BodyTooLong => write!(f, "body 过长(最多 {BODY_MAX} 字符)"),
+            Self::BadJson(e) => write!(f, "JSON 解析失败: {e}"),
+            Self::EmptyTitle => write!(f, "title 不能为空"),
+            Self::TitleTooLong => write!(f, "title 过长(最多 {TITLE_MAX} 字符)"),
+            Self::BodyTooLong => write!(f, "body 过长(最多 {BODY_MAX} 字符)"),
         }
     }
 }
@@ -83,7 +83,7 @@ impl std::fmt::Display for NotifyError {
 impl std::error::Error for NotifyError {}
 
 impl NotifyRequest {
-    /// 从 JSON 请求体解析(语法错误 → BadJson)
+    /// 从 JSON 请求体解析(语法错误 → `BadJson`)
     pub fn from_json(body: &str) -> Result<Self, NotifyError> {
         serde_json::from_str(body).map_err(|e| NotifyError::BadJson(e.to_string()))
     }
@@ -98,9 +98,10 @@ impl NotifyRequest {
             return Err(NotifyError::TitleTooLong);
         }
         if let Some(body) = &self.body
-            && body.chars().count() > BODY_MAX {
-                return Err(NotifyError::BodyTooLong);
-            }
+            && body.chars().count() > BODY_MAX
+        {
+            return Err(NotifyError::BodyTooLong);
+        }
         Ok(())
     }
 }
@@ -111,20 +112,30 @@ mod tests {
 
     #[test]
     fn from_json_bad() {
-        assert!(matches!(NotifyRequest::from_json("{bad"), Err(NotifyError::BadJson(_))));
+        assert!(matches!(
+            NotifyRequest::from_json("{bad"),
+            Err(NotifyError::BadJson(_))
+        ));
     }
 
     #[test]
     fn validate_branches() {
-        let mk = |title: &str| NotifyRequest { title: title.into(), body: None };
+        let mk = |title: &str| NotifyRequest {
+            title: title.into(),
+            body: None,
+        };
         assert!(matches!(mk(" ").validate(), Err(NotifyError::EmptyTitle)));
-        assert!(matches!(mk(&"x".repeat(TITLE_MAX + 1)).validate(), Err(NotifyError::TitleTooLong)));
+        assert!(matches!(
+            mk(&"x".repeat(TITLE_MAX + 1)).validate(),
+            Err(NotifyError::TitleTooLong)
+        ));
         let long = NotifyRequest {
             title: "t".into(),
             body: Some("b".repeat(BODY_MAX + 1)),
         };
         assert!(matches!(long.validate(), Err(NotifyError::BodyTooLong)));
-        assert!(mk("正常").validate().is_ok());
+        // 合法请求以 unwrap 断言(测试放宽见 clippy.toml)
+        mk("正常").validate().unwrap();
     }
 
     #[test]

@@ -44,3 +44,9 @@ assert "加粗" in n["body"] and "<b>" not in n["body"], f"HTML 未剥除: {n['b
 assert "红色" in n["body"], n
 print("PASS: 系统通知兜底真实送达,HTML 已剥为纯文本")
 EOF
+
+# CLI notify -f:强制兜底,应真实送达 mock 守护进程且退出码 0
+./target/release/x-notify-service notify -t "CLI 兜底手测" -f
+RC=$?
+[ "$RC" = "0" ] || { echo "FAIL: notify -f 退出码 $RC"; exit 1; }
+tail -1 "$OUT" | grep -q "CLI 兜底手测" && echo "PASS: notify -f 经 CLI 直发系统通知" || { echo "FAIL: mock 未收到 CLI 通知"; exit 1; }

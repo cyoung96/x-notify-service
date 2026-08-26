@@ -1,0 +1,3 @@
+# 测试代码放宽 unwrap/expect(assert 内部即 panic);生产路径在 Cargo.toml 保持 deny
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
