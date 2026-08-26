@@ -1,19 +1,54 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- x-notify-service 统一图标:品牌蓝平瓦 + 白色平钟,纯平面 -->
-  <!-- 动势 = 铃舌钟摆残影:轨迹弧两端渐隐 + 双侧残影位,振动示意图语法 -->
+  <!-- x-notify-service 统一图标:白瓦 + 立体深蓝钟(定向光渐变/右侧暗面/口沿遮蔽/软光泽) -->
+  <!-- 落影 = 宽软自然阴影(椭圆模糊),无镜像/无地平线/无装饰线 -->
   <!-- 由本源再生全部位图:scripts/gen-icons.sh -->
   <defs>
-    <linearGradient id="w" x1="194" y1="0" x2="318" y2="0" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.05"/>
-      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.8"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.05"/>
+    <radialGradient id="bg" cx="0.5" cy="0.3" r="0.95">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e9effb"/>
+    </radialGradient>
+    <linearGradient id="bell" x1="0.08" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#4f86ff"/>
+      <stop offset="0.42" stop-color="#7fa4f2"/>
+      <stop offset="1" stop-color="#1d49c0"/>
     </linearGradient>
+    <linearGradient id="side" x1="0" y1="0" x2="1" y2="0.25">
+      <stop offset="0.45" stop-color="#17368f" stop-opacity="0"/>
+      <stop offset="1" stop-color="#17368f" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="clap" cx="0.32" cy="0.28" r="0.95">
+      <stop offset="0" stop-color="#4f86ff"/>
+      <stop offset="1" stop-color="#1d49c0"/>
+    </radialGradient>
+    <clipPath id="bcut">
+      <path d="M256 92C194 92 142 138 142 210v72s-14 26-30 48c-10 14-2 30 16 30h256c18 0 26-16 16-30-16-22-30-48-30-48v-72c0-72-52-118-114-118z"/>
+    </clipPath>
+    <filter id="soften" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <filter id="sheen" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="26"/>
+    </filter>
+    <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+    <filter id="cast" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#122a66" flood-opacity="0.38"/>
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="112" fill="#4c8dff"/>
-  <!-- 钟摆残影:枢轴 (256,310) R=100 ±38° 三位置 -->
-  <path d="M 194 389 A 100 100 0 0 0 318 389" stroke="url(#w)" stroke-width="8" stroke-linecap="round" fill="none"/>
-  <circle cx="194" cy="389" r="20" fill="#ffffff" opacity="0.4"/>
-  <circle cx="318" cy="389" r="20" fill="#ffffff" opacity="0.4"/>
-  <path fill="#ffffff" d="M256 92C194 92 142 138 142 210v72s-14 26-30 48c-10 14-2 30 16 30h256c18 0 26-16 16-30-16-22-30-48-30-48v-72c0-72-52-118-114-118z"/>
-  <circle cx="256" cy="410" r="28" fill="#ffffff"/>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- 自然落影:宽软椭圆,不与物件接触(悬浮感) -->
+  <ellipse cx="258" cy="408" rx="148" ry="34" fill="#122a66" opacity="0.3" filter="url(#soft)"/>
+  <g filter="url(#cast)">
+    <path fill="url(#bell)" d="M256 92C194 92 142 138 142 210v72s-14 26-30 48c-10 14-2 30 16 30h256c18 0 26-16 16-30-16-22-30-48-30-48v-72c0-72-52-118-114-118z"/>
+    <g clip-path="url(#bcut)">
+      <rect x="100" y="60" width="340" height="330" fill="url(#side)"/>
+      <ellipse cx="256" cy="352" rx="150" ry="22" fill="#2c4fb0" opacity="0.45" filter="url(#soft)"/>
+      <!-- 软光泽:大面积受光,非点状反光 -->
+      <ellipse cx="210" cy="160" rx="90" ry="60" fill="#ffffff" opacity="0.3" filter="url(#sheen)"/>
+    </g>
+  </g>
+  <g filter="url(#cast)">
+    <circle cx="256" cy="398" r="30" fill="url(#clap)"/>
+  </g>
 </svg>
