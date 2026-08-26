@@ -54,20 +54,19 @@ POST /close  → {"ok":true}
 ```ts
 import { createNotifyService } from '@hexinfo/x-notify-service-sdk'
 
-const svc = createNotifyService()      // 可选 { token } 与服务端鉴权匹配
+const svc = createNotifyService()
 await svc.start()                      // 页面初始化提前拉起(幂等,未装静默 false)
 await svc.notify({ title: '工单提醒', body: '<b>紧急</b>工单<br>第二行' })
 // 服务未装/未跑时返回 { ok: false },不拉起不抛错
 ```
 
+服务端启用 token 鉴权时,SDK 同步配置:
+
+```ts
+const svc = createNotifyService({ token: '与服务端 config.toml 一致' })
+```
+
 纯 ESM、零依赖;完整 API 见发行包内 `sdk-使用手册.md`。开发:`cd sdk/js && pnpm install && pnpm build`,演示页 `pnpm demo`。
-
-## 打包与发布
-
-- `scripts/pack-linux.sh [x86_64|aarch64]`:tar.xz 绿色版(Debian 10 容器编译,glibc 2.28 地板,兼容 UOS 20/麒麟)
-- `scripts/pack-windows.sh`:NSIS setup.exe(per-user 免 UAC)
-- 安装:Linux 解压后 `./install.sh`(免 root);Windows 双击 setup.exe
-- 发版:推 `main` 只跑测试;`git tag v0.1.0 && git push origin v0.1.0` 触发打包发布 Release
 
 ## 已知限制
 
