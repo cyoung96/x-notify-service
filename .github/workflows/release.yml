@@ -30,6 +30,9 @@ jobs:
           path: .ci-cache
           key: linux-x86_64-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: linux-x86_64-cargo-
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - run: npm install -g pnpm@10
       - run: ./scripts/pack-linux.sh x86_64
       - uses: actions/upload-artifact@v4
@@ -46,6 +49,9 @@ jobs:
           path: .ci-cache
           key: linux-aarch64-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: linux-aarch64-cargo-
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - run: npm install -g pnpm@10
       - run: ./scripts/pack-linux.sh aarch64
       - uses: actions/upload-artifact@v4
@@ -60,6 +66,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64 nsis
       - run: rustup target add x86_64-pc-windows-gnu
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - run: npm install -g pnpm@10
       - run: ./scripts/pack-windows.sh x86_64-pc-windows-gnu
       - uses: actions/upload-artifact@v4

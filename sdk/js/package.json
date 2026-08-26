@@ -12,7 +12,7 @@
     "demo": "pnpm -F @hexinfo/x-notify-service-demo dev"
   },
   "engines": {
-    "node": ">=20.19"
+    "node": ">=24"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",

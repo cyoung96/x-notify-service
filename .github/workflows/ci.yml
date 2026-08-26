@@ -46,6 +46,9 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       # SDK 先于 release 构建:保证编译期内嵌的是真产物而非占位桩
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - run: npm install -g pnpm@10
       - run: cd sdk/js && pnpm install --silent && pnpm -F @hexinfo/x-notify-service-sdk build
       - run: cargo build --release
