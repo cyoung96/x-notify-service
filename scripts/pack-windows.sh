@@ -29,5 +29,5 @@ cp assets/demo.html "$STAGE/demo.html"
 echo "==> makensis"
 makensis -NOCD -DSTAGE="$STAGE" -DVERSION="$VERSION" scripts/pack-windows.nsi
 rm -rf "$STAGE"
-echo "==> 产出: dist/x-notify-service-setup-$VERSION.exe"
-ls -lh "dist/x-notify-service-setup-$VERSION.exe" | awk '{print $5, $9}'
+echo "==> 产出: dist/x-notify-service-$VERSION-windows-x86_64-setup.exe"
+ls -lh "dist/x-notify-service-$VERSION-windows-x86_64-setup.exe" | awk '{print $5, $9}'

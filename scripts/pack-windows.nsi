@@ -13,7 +13,7 @@ ManifestDPIAware true
 !define MUI_UNICON "${STAGE}\x-notify-service.ico"
 
 Name "${APPNAME} ${VERSION}"
-OutFile "dist\${APPNAME}-setup-${VERSION}.exe"
+OutFile "dist\${APPNAME}-${VERSION}-windows-x86_64-setup.exe"
 InstallDir "$LOCALAPPDATA\Programs\${APPNAME}"
 InstallDirRegKey HKCU "Software\${APPNAME}" "InstallDir"
 RequestExecutionLevel user
