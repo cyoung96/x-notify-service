@@ -205,7 +205,7 @@ fn set_window_icons() {
                 .and_then(|c| c.reply().ok())
                 .map(|a| a.atom);
             let Some(atom) = atom else { return };
-            let bytes: Vec<u8> = data.iter().flat_map(u32::to_ne_bytes).collect();
+            let bytes: Vec<u8> = data.iter().copied().flat_map(u32::to_ne_bytes).collect();
             let _ = conn.change_property(
                 x11rb::protocol::xproto::PropMode::REPLACE,
                 wid,
