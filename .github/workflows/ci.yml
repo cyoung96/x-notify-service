@@ -23,9 +23,11 @@ jobs:
       - run: rustup component add clippy
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
+      # SDK 先于 release 构建:保证编译期内嵌的是真产物而非占位桩
+      - run: npm install -g pnpm@10
+      - run: cd sdk/js && pnpm install --silent && pnpm -F @hexinfo/x-notify-service-sdk build
       - run: cargo build --release
       - run: scripts/ci/test-api.sh
       - run: dbus-run-session -- scripts/ci/test-fallback.sh
       - run: scripts/ci/test-gui.sh
-      - run: npm install -g pnpm@10
-      - run: cd sdk/js && pnpm install --silent && pnpm -F @hexinfo/x-notify-service-sdk build && pnpm -F @hexinfo/x-notify-service-sdk test
+      - run: cd sdk/js && pnpm -F @hexinfo/x-notify-service-sdk test
