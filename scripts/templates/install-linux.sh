@@ -44,7 +44,7 @@ if [ -d "$SRC_DIR/icons/hicolor" ]; then
 fi
 # 演示页与 SDK 放置到用户数据目录
 mkdir -p "$HOME/.local/share/x-notify-service"
-cp "$SRC_DIR/demo.html" "$SRC_DIR/sdk.js" "$HOME/.local/share/x-notify-service/"
+cp "$SRC_DIR/demo.html" "$SRC_DIR/sdk.js" "$SRC_DIR/sdk-使用手册.md" "$HOME/.local/share/x-notify-service/"
 
 case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
