@@ -16,8 +16,9 @@ sleep 1
 # 服务/WM/xdotool 统一连接该 DISPLAY(不 export 的话 xdotool 会连默认 :0 而查不到窗口)
 export DISPLAY="$DISPLAY_ID"
 
-# 真实 WM:Xfwm4 会把新窗口按自己的摆放策略放置(如级联/左上角),
-# 并维护 _NET_WORKAREA(无面板时 = 0,0,1280,800)
+# 真实 WM:Xfwm4 会把新窗口按自己的摆放策略放置(如级联/左上角)。
+# 手工注入 _NET_WORKAREA,确保服务走「读根窗口属性」路径(而非全屏兜底),
+# 该路径曾因字节偏移错位把工作区读成全零 → 弹窗负坐标被钳到左上角
 if command -v xfwm4 >/dev/null 2>&1; then
     DISPLAY="$DISPLAY_ID" xfwm4 >/dev/null 2>&1 &
     sleep 1
@@ -25,6 +26,7 @@ if command -v xfwm4 >/dev/null 2>&1; then
 else
     echo "SKIP: 无 xfwm4,退化为无 WM 冒烟(定位断言跳过)"
 fi
+xprop -root -f _NET_WORKAREA 32c -set _NET_WORKAREA "0, 0, 1280, 800"
 
 DISPLAY="$DISPLAY_ID" "$BIN" >/tmp/xns-gui.log 2>&1 &
 for _ in $(seq 1 50); do curl -sf "$API/health" >/dev/null 2>&1 && break; sleep 0.2; done
