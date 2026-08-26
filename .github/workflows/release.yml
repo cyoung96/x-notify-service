@@ -77,7 +77,7 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           gh release create "$TAG" \
             --title "x-notify-service $TAG" \
-            --notes "正式发布 $TAG · commit ${GITHUB_SHA::8} · $(date '+%Y-%m-%d %H:%M')
+            --notes "正式发布 $TAG · commit ${GITHUB_SHA::8} · $(date -u '+%Y-%m-%d %H:%M UTC')
 
           #### 产物
           - Linux x86_64 / aarch64: tar.xz 绿色版(解压后 ./install.sh,免 root)
