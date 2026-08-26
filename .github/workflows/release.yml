@@ -4,14 +4,15 @@
 # 产物:Linux tar.xz(x86_64/aarch64)+ Windows NSIS setup.exe
 # 说明:Linux 在 Debian 10 容器内编译(glibc 2.28 地板,兼容 UOS 20/麒麟 V10
 #       等老 glibc 系统,产出可跑在 ≥2.28 的所有发行版);脚本自带 GLIBC 断言。
-#       linux-aarch64 使用 GitHub 原生 arm64 runner(公开仓库免费;
-#       私有仓库如无 arm64 配额,可改用 ubuntu-24.04 + docker/setup-qemu-action)
+#       linux-aarch64 使用 GitHub 原生 arm64 runner(公开仓库免费)
 
 name: release
 
 on:
   push:
     tags: ['v*']
+  # 手动干跑:走完整打包与冒烟,但不发布(publish 仅 tag 推送触发)
+  workflow_dispatch:
 
 # 最小权限基线:publish job 覆盖为 contents: write
 permissions:
@@ -60,17 +61,23 @@ jobs:
           path: dist/*.tar.xz
 
   windows:
-    runs-on: ubuntu-24.04
+    # 原生 Windows 编译机:MSVC 一等工具链(rc.exe 嵌图标零配置),
+    # 且产物可在构建机真实冒烟(交叉编译做不到);公开仓库 runner 免费
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64 nsis
-      - run: rustup target add x86_64-pc-windows-gnu
       - uses: actions/setup-node@v4
         with:
           node-version: 24
       - run: npm install -g pnpm@10
-      - run: ./scripts/pack-windows.sh x86_64-pc-windows-gnu
+      - run: bash scripts/pack-windows.sh x86_64-pc-windows-msvc
+        shell: bash
+      # 产物冒烟:GUI 子系统经 AttachConsole 回显到本控制台
+      - run: |
+          ./target/x86_64-pc-windows-msvc/release/x-notify-service.exe --version
+          ./target/x86_64-pc-windows-msvc/release/x-notify-service.exe info | head -5
+        shell: bash
       - uses: actions/upload-artifact@v4
         with:
           name: windows-setup-exe
@@ -78,6 +85,8 @@ jobs:
 
   publish:
     needs: [linux-x86_64, linux-aarch64, windows]
+    # 仅 tag 推送才发布;workflow_dispatch 干跑不碰 Releases
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
