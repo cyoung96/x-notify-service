@@ -8,8 +8,9 @@ use flexi_logger::{Age, Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming,
 
 use crate::config::Config;
 
-/// 初始化日志:按天滚动、保留 7 天,warn 及以上同步镜像到 stderr。
-/// 返回的 `LoggerHandle` 需在 main 存活期间保持持有。
+/// 初始化日志(仅 serve 模式调用):按天滚动、保留 3 天(历史 3 + 当前 1,最多 4 个文件),
+/// warn 及以上镜像 stderr;轮换/清理由输出线程承担。
+/// 返回的 `LoggerHandle` 需在 main 存活期间保持持有(丢弃即停日志)。
 pub fn init(cfg: &Config) -> Option<LoggerHandle> {
     if let Err(e) = std::fs::create_dir_all(&cfg.log_dir) {
         eprintln!("警告: 无法创建日志目录 {}: {e}", cfg.log_dir.display());
@@ -35,10 +36,15 @@ pub fn init(cfg: &Config) -> Option<LoggerHandle> {
         .rotate(
             Criterion::Age(Age::Day),
             Naming::Timestamps,
-            Cleanup::KeepLogFiles(7),
+            Cleanup::KeepLogFiles(3),
         )
         .duplicate_to_stderr(Duplicate::Warn)
-        .write_mode(WriteMode::BufferAndFlush)
+        // 异步写:调用线程仅入队,输出线程持续落盘(流式)并每 300ms 刷盘
+        .write_mode(WriteMode::AsyncWith {
+            pool_capa: 64,
+            message_capa: 256,
+            flush_interval: std::time::Duration::from_millis(300),
+        })
         .format_for_files(flexi_logger::opt_format);
 
     match logger.start() {
