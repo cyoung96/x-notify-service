@@ -69,7 +69,8 @@ if command -v xdotool >/dev/null 2>&1; then
                 echo "PASS: 弹窗置顶(_NET_WM_STATE_ABOVE)"
             else
                 # 诊断:手工发同样的 ClientMessage,区分"slint 没发"与"WM 不理"
-                xdotool set_window --over "$WIN" 2>/dev/null; sleep 0.5
+                xdotool set_window --over "$WIN" >/dev/null 2>&1 || echo "xdotool --over 退出码 $?"
+                sleep 0.5
                 AFTER=$(xprop -id "$WIN" _NET_WM_STATE 2>/dev/null)
                 echo "手工 ClientMessage 后: $AFTER"
                 echo "$AFTER" | grep -q "_NET_WM_STATE_ABOVE" \
