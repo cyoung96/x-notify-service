@@ -181,7 +181,7 @@ fn set_window_icons() {
     ];
     let mut data: Vec<u32> = Vec::new();
     for bytes in ICONS {
-        let Ok(img) = decode_rgba(bytes) else {
+        let Some(img) = decode_rgba(bytes) else {
             log::warn!("内嵌图标解码失败,跳过一档");
             continue;
         };
@@ -194,7 +194,7 @@ fn set_window_icons() {
         return;
     };
     let root = conn.setup().roots[screen_num].root;
-    let Ok(tree) = conn.query_tree(root).ok().and_then(|c| c.reply().ok()) else {
+    let Some(tree) = conn.query_tree(root).ok().and_then(|c| c.reply().ok()) else {
         return;
     };
     for wid in tree.children {
@@ -205,12 +205,14 @@ fn set_window_icons() {
                 .and_then(|c| c.reply().ok())
                 .map(|a| a.atom);
             let Some(atom) = atom else { return };
-            let _ = conn.change_property32(
+            let bytes: Vec<u8> = data.iter().flat_map(u32::to_ne_bytes).collect();
+            let _ = conn.change_property(
                 x11rb::protocol::xproto::PropMode::REPLACE,
                 wid,
                 atom,
                 x11rb::protocol::xproto::AtomEnum::CARDINAL,
-                &data,
+                32,
+                &bytes,
             );
             let _ = conn.flush();
             log::debug!("已写入多档窗口图标({} 档)", ICONS.len());
