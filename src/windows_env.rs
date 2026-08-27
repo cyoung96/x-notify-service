@@ -56,8 +56,9 @@ pub fn skip_taskbar() {
     if hwnd.is_null() {
         return;
     }
-    // SAFETY: HWND 来自 FindWindow(有效窗口);仅读写扩展样式位
+    #[allow(clippy::cast_possible_wrap)]
     let ex_style = WS_EX_TOOLWINDOW as isize;
+    // SAFETY: HWND 来自 FindWindow(有效窗口);仅读写扩展样式位
     unsafe {
         let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | ex_style);
