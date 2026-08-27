@@ -33,6 +33,7 @@ mod imp {
         if let Some(wid) = find_window(&conn, root) {
             write_blob(&conn, wid, ICON_BLOB);
             configure_notification_window(&conn, root, wid);
+            let _ = conn.flush();
         }
     }
 
@@ -157,19 +158,22 @@ mod imp {
             return;
         }
 
-        write_atoms(conn, wid, atoms.window_type, &[atoms.notification]);
-        super::merge_atoms(&mut states, &required_states);
-        write_atoms(conn, wid, atoms.state, &states);
-        send_state_change(
-            conn,
-            root,
-            wid,
-            atoms.state,
-            atoms.skip_taskbar,
-            atoms.skip_pager,
-        );
-        send_state_change(conn, root, wid, atoms.state, atoms.above, 0);
-        let _ = conn.flush();
+        if !types.contains(&atoms.notification) {
+            write_atoms(conn, wid, atoms.window_type, &[atoms.notification]);
+        }
+        if !contains_all(&states, &required_states) {
+            super::merge_atoms(&mut states, &required_states);
+            write_atoms(conn, wid, atoms.state, &states);
+            send_state_change(
+                conn,
+                root,
+                wid,
+                atoms.state,
+                atoms.skip_taskbar,
+                atoms.skip_pager,
+            );
+            send_state_change(conn, root, wid, atoms.state, atoms.above, 0);
+        }
 
         let applied_states = get_atoms(conn, wid, atoms.state);
         let applied_types = get_atoms(conn, wid, atoms.window_type);
@@ -274,7 +278,6 @@ mod imp {
             property_units(blob),
             blob,
         );
-        let _ = conn.flush();
         log::debug!("已写入多档窗口图标");
     }
 }

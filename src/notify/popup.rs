@@ -141,7 +141,7 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
         }
         // 已映射后再切置顶:触发映射后的 ClientMessage,WM 才会应答
         entry.popup.set_raise_above(true);
-        entry.fixups = fixup_timers(&entry.popup, area);
+        entry.fixups = fixup_timers(&entry.popup, area, created);
 
         let (px, py) = landing(&area);
         log::info!(
@@ -162,7 +162,15 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
 /// 显示后多次复校位置,对抗 WM 重摆(部分窗口管理器会把新映射窗口摆到默认位);
 /// 每次触发先对比现位置,发现被移动则告警留痕再复校。
 /// 返回的定时器由 Entry 持有,下一条通知会整体替换。
-fn fixup_timers(popup: &PopupWindow, area: crate::screen::WorkArea) -> Vec<slint::Timer> {
+const fn should_retry_x11_init(created: bool, delay_ms: u64) -> bool {
+    created && delay_ms == 50
+}
+
+fn fixup_timers(
+    popup: &PopupWindow,
+    area: crate::screen::WorkArea,
+    retry_x11_init: bool,
+) -> Vec<slint::Timer> {
     let weak = popup.as_weak();
     let mut fixups = Vec::with_capacity(4);
     for delay_ms in [50u64, 120, 250, 500] {
@@ -179,7 +187,7 @@ fn fixup_timers(popup: &PopupWindow, area: crate::screen::WorkArea) -> Vec<slint
                         log::warn!("WM 重摆了弹窗(现 {cur:?}),复校回 {expected:?}");
                     }
                     position(&p, &area);
-                    if delay_ms == 50 {
+                    if should_retry_x11_init(retry_x11_init, delay_ms) {
                         // 首次 tick 兜底:spawn 后原生窗口尚未可查时重试一次
                         #[cfg(target_os = "linux")]
                         crate::notify::window_icon::set();
@@ -267,7 +275,14 @@ fn set_body(popup: &PopupWindow, body_html: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::get_or_try_init;
+    use super::{get_or_try_init, should_retry_x11_init};
+
+    #[test]
+    fn x11_init_retry_only_runs_for_first_window_at_first_tick() {
+        assert!(should_retry_x11_init(true, 50));
+        assert!(!should_retry_x11_init(false, 50));
+        assert!(!should_retry_x11_init(true, 120));
+    }
 
     #[test]
     fn get_or_try_init_reuses_existing_value() {
