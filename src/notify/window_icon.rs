@@ -28,8 +28,8 @@ mod imp {
         }
     }
 
-    /// 设置 _NET_WM_STATE_SKIP_TASKBAR:弹窗不占任务栏条目
-    /// (通知类窗口不应出现在任务栏,winit 的 X11 层不透出此能力故自行设置)
+    /// 设置 _NET_WM_STATE_SKIP_TASKBAR:弹窗不占任务栏条目。
+    /// 双保险:直接改窗口属性(任务栏可读)+ ClientMessage 通知 WM 同步
     fn skip_taskbar(conn: &x11rb::rust_connection::RustConnection, root: u32, wid: u32) {
         let state = conn
             .intern_atom(false, b"_NET_WM_STATE")
@@ -44,6 +44,42 @@ mod imp {
         let (Some(state), Some(skip)) = (state, skip) else {
             return;
         };
+
+        // ① 直接改属性:读当前值,追加 SKIP_TASKBAR(任务栏直接读属性即可生效)
+        let current = conn
+            .get_property(
+                false,
+                wid,
+                state,
+                x11rb::protocol::xproto::AtomEnum::ATOM,
+                0,
+                128,
+            )
+            .ok()
+            .and_then(|c| c.reply().ok());
+        let mut atoms: Vec<u32> = current
+            .map(|r| {
+                let (words, _) = r.value.as_chunks::<4>();
+                words.iter().map(|c| u32::from_le_bytes(*c)).collect()
+            })
+            .unwrap_or_default();
+        if !atoms.contains(&skip) {
+            atoms.push(skip);
+            let bytes: Vec<u8> = atoms.iter().flat_map(|a| a.to_ne_bytes()).collect();
+            if let Ok(len) = u32::try_from(bytes.len()) {
+                let _ = conn.change_property(
+                    x11rb::protocol::xproto::PropMode::REPLACE,
+                    wid,
+                    state,
+                    x11rb::protocol::xproto::AtomEnum::ATOM,
+                    32,
+                    len >> 2,
+                    &bytes,
+                );
+            }
+        }
+
+        // ② ClientMessage 通知 WM 同步内部状态
         let event = x11rb::protocol::xproto::ClientMessageEvent {
             response_type: x11rb::protocol::xproto::CLIENT_MESSAGE_EVENT,
             format: 32,
