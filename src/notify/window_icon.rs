@@ -1,5 +1,5 @@
-//! 窗口多档图标:构建期生成 X11 线序负载(纯数据,跨平台编译与测试),
-//! X11 直写仅 Linux 运行时;slint 的 icon 属性只能设单张,这里补齐四档供任务栏取最近尺寸。
+//! Linux X11 窗口集成:补齐通知窗口状态和多档图标。
+//! 图标负载由构建脚本生成,运行时直接写入 X11 属性。
 
 include!(concat!(env!("OUT_DIR"), "/window_icons.rs"));
 
@@ -8,6 +8,14 @@ include!(concat!(env!("OUT_DIR"), "/window_icons.rs"));
 pub(super) fn property_units(blob: &[u8]) -> u32 {
     // 字节长转 u32 元素数:右移两位即 /4
     u32::try_from(blob.len() >> 2).unwrap_or(u32::MAX)
+}
+
+fn merge_atoms(atoms: &mut Vec<u32>, required: &[u32]) {
+    for atom in required {
+        if !atoms.contains(atom) {
+            atoms.push(*atom);
+        }
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -24,72 +32,104 @@ mod imp {
         let root = conn.setup().roots[screen_num].root;
         if let Some(wid) = find_window(&conn, root) {
             write_blob(&conn, wid, ICON_BLOB);
-            skip_taskbar(&conn, root, wid);
+            configure_notification_window(&conn, root, wid);
         }
     }
 
-    /// 设置 _NET_WM_STATE_SKIP_TASKBAR:弹窗不占任务栏条目。
-    /// 双保险:直接改窗口属性(任务栏可读)+ ClientMessage 通知 WM 同步
-    fn skip_taskbar(conn: &x11rb::rust_connection::RustConnection, root: u32, wid: u32) {
-        let state = conn
-            .intern_atom(false, b"_NET_WM_STATE")
+    fn atom(conn: &x11rb::rust_connection::RustConnection, name: &[u8]) -> Option<u32> {
+        conn.intern_atom(false, name)
             .ok()
             .and_then(|c| c.reply().ok())
-            .map(|a| a.atom);
-        let skip = conn
-            .intern_atom(false, b"_NET_WM_STATE_SKIP_TASKBAR")
-            .ok()
-            .and_then(|c| c.reply().ok())
-            .map(|a| a.atom);
-        let (Some(state), Some(skip)) = (state, skip) else {
-            return;
-        };
+            .map(|a| a.atom)
+    }
 
-        // ① 直接改属性:读当前值,追加 SKIP_TASKBAR(任务栏直接读属性即可生效)
-        let current = conn
-            .get_property(
-                false,
-                wid,
-                state,
-                x11rb::protocol::xproto::AtomEnum::ATOM,
-                0,
-                128,
-            )
-            .ok()
-            .and_then(|c| c.reply().ok());
-        let mut atoms: Vec<u32> = current
-            .map(|r| {
-                let (words, _) = r.value.as_chunks::<4>();
-                words.iter().map(|c| u32::from_le_bytes(*c)).collect()
+    struct NotificationAtoms {
+        state: u32,
+        skip_taskbar: u32,
+        skip_pager: u32,
+        above: u32,
+        window_type: u32,
+        notification: u32,
+    }
+
+    impl NotificationAtoms {
+        fn load(conn: &x11rb::rust_connection::RustConnection) -> Option<Self> {
+            Some(Self {
+                state: atom(conn, b"_NET_WM_STATE")?,
+                skip_taskbar: atom(conn, b"_NET_WM_STATE_SKIP_TASKBAR")?,
+                skip_pager: atom(conn, b"_NET_WM_STATE_SKIP_PAGER")?,
+                above: atom(conn, b"_NET_WM_STATE_ABOVE")?,
+                window_type: atom(conn, b"_NET_WM_WINDOW_TYPE")?,
+                notification: atom(conn, b"_NET_WM_WINDOW_TYPE_NOTIFICATION")?,
             })
-            .unwrap_or_default(); // 属性不存在时从空开始
-        if !atoms.contains(&skip) {
-            atoms.push(skip);
-            let bytes: Vec<u8> = atoms.iter().flat_map(|a| a.to_ne_bytes()).collect();
-            if let Ok(len) = u32::try_from(bytes.len()) {
-                let _ = conn.change_property(
-                    x11rb::protocol::xproto::PropMode::REPLACE,
-                    wid,
-                    state,
-                    x11rb::protocol::xproto::AtomEnum::ATOM,
-                    32,
-                    len >> 2,
-                    &bytes,
-                );
-            }
         }
 
-        // ② ClientMessage 通知 WM 同步内部状态
+        const fn required_states(&self) -> [u32; 3] {
+            [self.skip_taskbar, self.skip_pager, self.above]
+        }
+    }
+
+    fn contains_all(atoms: &[u32], required: &[u32]) -> bool {
+        required.iter().all(|required| atoms.contains(required))
+    }
+
+    fn get_atoms(
+        conn: &x11rb::rust_connection::RustConnection,
+        wid: u32,
+        property: u32,
+    ) -> Vec<u32> {
+        conn.get_property(
+            false,
+            wid,
+            property,
+            x11rb::protocol::xproto::AtomEnum::ATOM,
+            0,
+            128,
+        )
+        .ok()
+        .and_then(|c| c.reply().ok())
+        .map(|reply| {
+            let (words, _) = reply.value.as_chunks::<4>();
+            words.iter().map(|word| u32::from_ne_bytes(*word)).collect()
+        })
+        .unwrap_or_default()
+    }
+
+    fn write_atoms(
+        conn: &x11rb::rust_connection::RustConnection,
+        wid: u32,
+        property: u32,
+        atoms: &[u32],
+    ) {
+        let bytes: Vec<u8> = atoms.iter().flat_map(|atom| atom.to_ne_bytes()).collect();
+        if let Ok(len) = u32::try_from(atoms.len()) {
+            let _ = conn.change_property(
+                x11rb::protocol::xproto::PropMode::REPLACE,
+                wid,
+                property,
+                x11rb::protocol::xproto::AtomEnum::ATOM,
+                32,
+                len,
+                &bytes,
+            );
+        }
+    }
+
+    fn send_state_change(
+        conn: &x11rb::rust_connection::RustConnection,
+        root: u32,
+        wid: u32,
+        state: u32,
+        first: u32,
+        second: u32,
+    ) {
         let event = x11rb::protocol::xproto::ClientMessageEvent {
             response_type: x11rb::protocol::xproto::CLIENT_MESSAGE_EVENT,
             format: 32,
             sequence: 0,
             window: wid,
             type_: state,
-            data: x11rb::protocol::xproto::ClientMessageData::from([
-                1, // _NET_WM_STATE_ADD
-                skip, 0, 0, 1, // source indication: application
-            ]),
+            data: x11rb::protocol::xproto::ClientMessageData::from([1, first, second, 1, 0]),
         };
         let _ = conn.send_event(
             false,
@@ -98,7 +138,46 @@ mod imp {
                 | x11rb::protocol::xproto::EventMask::SUBSTRUCTURE_NOTIFY,
             event,
         );
+    }
+
+    /// 补齐通知窗口状态;窗口类型已在 winit 创建属性中预置,这里同时读回验证。
+    fn configure_notification_window(
+        conn: &x11rb::rust_connection::RustConnection,
+        root: u32,
+        wid: u32,
+    ) {
+        let Some(atoms) = NotificationAtoms::load(conn) else {
+            return;
+        };
+
+        let required_states = atoms.required_states();
+        let mut states = get_atoms(conn, wid, atoms.state);
+        let types = get_atoms(conn, wid, atoms.window_type);
+        if types.contains(&atoms.notification) && contains_all(&states, &required_states) {
+            return;
+        }
+
+        write_atoms(conn, wid, atoms.window_type, &[atoms.notification]);
+        super::merge_atoms(&mut states, &required_states);
+        write_atoms(conn, wid, atoms.state, &states);
+        send_state_change(
+            conn,
+            root,
+            wid,
+            atoms.state,
+            atoms.skip_taskbar,
+            atoms.skip_pager,
+        );
+        send_state_change(conn, root, wid, atoms.state, atoms.above, 0);
         let _ = conn.flush();
+
+        let applied_states = get_atoms(conn, wid, atoms.state);
+        let applied_types = get_atoms(conn, wid, atoms.window_type);
+        if !applied_types.contains(&atoms.notification)
+            || !contains_all(&applied_states, &required_states)
+        {
+            log::warn!("Linux 通知窗口属性设置未生效: wid={wid}");
+        }
     }
 
     /// 定位本服务窗口:EWMH 客户端清单优先;精简 WM 不维护清单时递归全树兜底
@@ -202,8 +281,7 @@ mod imp {
 
 #[cfg(target_os = "linux")]
 pub(super) fn set() {
-    // 图标是装饰性功能:任何 panic 拦截降级为 error 日志,
-    // 绝不允许它杀死事件循环线程(UOS 闪退事故教训)
+    // X11 属性是增强能力,失败不得杀死事件循环线程
     if std::panic::catch_unwind(imp::set).is_err() {
         log::error!("窗口图标写入失败(panic 已拦截),通知功能不受影响");
     }
@@ -211,7 +289,16 @@ pub(super) fn set() {
 
 #[cfg(test)]
 mod tests {
-    use super::{ICON_BLOB, property_units};
+    use super::{ICON_BLOB, merge_atoms, property_units};
+
+    #[test]
+    fn merge_atoms_preserves_existing_and_adds_missing_values() {
+        let mut atoms = vec![10, 20];
+
+        merge_atoms(&mut atoms, &[20, 30, 40]);
+
+        assert_eq!(atoms, vec![10, 20, 30, 40]);
+    }
 
     /// 闪退根因回归:字节数必须换算为 32 位元素数
     #[test]

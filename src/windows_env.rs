@@ -40,31 +40,6 @@ pub fn attach_parent_console() {
 #[cfg(not(windows))]
 pub const fn attach_parent_console() {}
 
-/// 弹窗不占任务栏条目:按窗口标题(与 Linux 同口径)找到 HWND,加 WS_EX_TOOLWINDOW。
-/// 须在首次 show() 后调用,此时原生 HWND 已创建;进程内只存在一个同标题窗口。
-/// (通知类窗口不应出现在任务栏;Slint/winit 不透出 skip-taskbar 属性)
-#[cfg(windows)]
-// 取屏 FFI 同款豁免
-#[allow(unsafe_code, clippy::multiple_unsafe_ops_per_block)]
-pub fn skip_taskbar() {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, GWL_EXSTYLE, GetWindowLongPtrW, SetWindowLongPtrW, WS_EX_TOOLWINDOW,
-    };
-    let title: Vec<u16> = "x-notify-service\0".encode_utf16().collect();
-    // SAFETY: 常量入参;仅查标题匹配的窗口句柄,不做其他操作
-    let hwnd = unsafe { FindWindowW(std::ptr::null(), title.as_ptr()) };
-    if hwnd.is_null() {
-        return;
-    }
-    #[allow(clippy::cast_possible_wrap)]
-    let ex_style = WS_EX_TOOLWINDOW as isize;
-    // SAFETY: HWND 来自 FindWindow(有效窗口);仅读写扩展样式位
-    unsafe {
-        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | ex_style);
-    }
-}
-
 #[cfg(windows)]
 // Win32 注册表/消息广播 FFI
 #[allow(unsafe_code, clippy::multiple_unsafe_ops_per_block)]
@@ -137,12 +112,14 @@ pub fn set_user_path(add: bool) {
     let param: Vec<u16> = "Environment\0".encode_utf16().collect();
     // SAFETY: 广播常量消息;指针指向本栈上有效的 UTF-16 参数串
     unsafe {
-        windows_sys::Win32::UI::WindowsAndMessaging::SendMessageTimeoutW(
-            windows_sys::Win32::UI::WindowsAndMessaging::HWND_BROADCAST,
-            windows_sys::Win32::UI::WindowsAndMessaging::WM_SETTINGCHANGE,
+        use windows_sys::Win32::UI::WindowsAndMessaging;
+
+        WindowsAndMessaging::SendMessageTimeoutW(
+            WindowsAndMessaging::HWND_BROADCAST,
+            WindowsAndMessaging::WM_SETTINGCHANGE,
             0,
             param.as_ptr() as isize,
-            windows_sys::Win32::UI::WindowsAndMessaging::SMTO_ABORTIFHUNG,
+            WindowsAndMessaging::SMTO_ABORTIFHUNG,
             3000,
             std::ptr::null_mut(),
         );

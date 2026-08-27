@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::sync::OnceLock;
 
 use crate::{PopupWindow, html};
 
@@ -21,7 +22,7 @@ fn get_or_try_init<T, E>(
 
 struct Entry {
     popup: PopupWindow,
-    // 显示后位置复校定时器(机制见 fixup_timers);Entry 移除时随之失效
+    // 新通知替换这组定时器,旧复校任务随 Timer drop 取消
     fixups: Vec<slint::Timer>,
     /// 弹窗关闭后退出事件循环(notify 子命令单发进程用;服务模式恒 false)
     quit_on_close: bool,
@@ -32,6 +33,51 @@ thread_local! {
     static CURRENT: RefCell<Option<Entry>> = const { RefCell::new(None) };
 }
 
+static BACKEND_READY: OnceLock<bool> = OnceLock::new();
+
+#[cfg(windows)]
+fn window_attributes(
+    attributes: winit::window::WindowAttributes,
+) -> winit::window::WindowAttributes {
+    use winit::platform::windows::WindowAttributesExtWindows as _;
+    attributes
+        .with_window_level(winit::window::WindowLevel::AlwaysOnTop)
+        .with_skip_taskbar(true)
+}
+
+#[cfg(target_os = "linux")]
+fn window_attributes(
+    attributes: winit::window::WindowAttributes,
+) -> winit::window::WindowAttributes {
+    use winit::platform::x11::{WindowAttributesExtX11 as _, WindowType};
+    attributes
+        .with_window_level(winit::window::WindowLevel::AlwaysOnTop)
+        .with_x11_window_type(vec![WindowType::Notification])
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
+const fn window_attributes(
+    attributes: winit::window::WindowAttributes,
+) -> winit::window::WindowAttributes {
+    attributes
+}
+
+fn select_backend() -> bool {
+    *BACKEND_READY.get_or_init(|| {
+        let selected = i_slint_backend_selector::api::BackendSelector::new()
+            .backend_name("winit".into())
+            .with_winit_window_attributes_hook(window_attributes)
+            .select();
+        match selected {
+            Ok(()) => true,
+            Err(e) => {
+                log::warn!("GUI 后端初始化失败: {e}");
+                false
+            }
+        }
+    })
+}
+
 /// 启动时探测弹窗 GUI 是否可用(必须在主线程调用,`run_event_loop` 之前)
 pub fn gui_probe() -> bool {
     #[cfg(target_os = "linux")]
@@ -40,6 +86,9 @@ pub fn gui_probe() -> bool {
             log::warn!("无 DISPLAY/WAYLAND_DISPLAY,弹窗不可用");
             return false;
         }
+    }
+    if !select_backend() {
+        return false;
     }
     let probe = std::panic::catch_unwind(|| PopupWindow::new().map(drop));
     match probe {
@@ -87,8 +136,6 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
 
         // 原生窗口在首次 show 后存在;同一 PopupWindow/原生窗口后续只更新内容
         if created {
-            #[cfg(windows)]
-            crate::windows_env::skip_taskbar();
             #[cfg(target_os = "linux")]
             crate::notify::window_icon::set();
         }
@@ -114,7 +161,7 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
 
 /// 显示后多次复校位置,对抗 WM 重摆(部分窗口管理器会把新映射窗口摆到默认位);
 /// 每次触发先对比现位置,发现被移动则告警留痕再复校。
-/// 返回的定时器由 Entry 持有,条目移除时随之失效。
+/// 返回的定时器由 Entry 持有,下一条通知会整体替换。
 fn fixup_timers(popup: &PopupWindow, area: crate::screen::WorkArea) -> Vec<slint::Timer> {
     let weak = popup.as_weak();
     let mut fixups = Vec::with_capacity(4);
@@ -132,9 +179,11 @@ fn fixup_timers(popup: &PopupWindow, area: crate::screen::WorkArea) -> Vec<slint
                         log::warn!("WM 重摆了弹窗(现 {cur:?}),复校回 {expected:?}");
                     }
                     position(&p, &area);
-                    // 首次 tick 兜底:若 spawn 时 find_window 未命中(WM 未就绪),补设属性
-                    #[cfg(target_os = "linux")]
-                    crate::notify::window_icon::set();
+                    if delay_ms == 50 {
+                        // 首次 tick 兜底:spawn 后原生窗口尚未可查时重试一次
+                        #[cfg(target_os = "linux")]
+                        crate::notify::window_icon::set();
+                    }
                 }
             },
         );

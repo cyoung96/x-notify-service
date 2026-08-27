@@ -23,6 +23,8 @@ slint = { version = "1", default-features = false, features = [
     # 只带 X11 后端:Wayland 会话在应用层即降级系统通知,二进制无需 wayland 协议栈(显著减小体积)
     "backend-winit-x11",
 ] }
+i-slint-backend-selector = { version = "1", default-features = false, features = ["unstable-winit-030"] }
+winit = { version = "0.30", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
