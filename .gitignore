@@ -15,3 +15,5 @@ sdk/js/**/dist
 *.log
 .DS_Store
 .zcode/
+.video_agent
+.idea

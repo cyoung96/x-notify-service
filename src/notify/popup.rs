@@ -73,14 +73,15 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
     position(&popup, &area);
     let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
     popup.on_close_requested(move || remove(id));
-    // Windows:WS_EX_TOOLWINDOW 须在 show 之前设置,否则任务栏按钮已创建
-    #[cfg(windows)]
-    crate::windows_env::skip_taskbar();
     if let Err(e) = popup.show() {
         log::warn!("弹窗显示失败,本条通知走系统通知: {e}");
         crate::notify::fallback::show_raw(title, &html::to_plain_text(body_html));
         return;
     }
+    // show 后窗口已创建:Windows 用 FindWindow 定位 + WS_EX_TOOLWINDOW
+    // (Shell 对已映射窗口的样式变更会同步移除任务栏按钮)
+    #[cfg(windows)]
+    crate::windows_env::skip_taskbar();
     // 已映射后再切置顶:触发映射后的 ClientMessage,WM 才会应答
     popup.set_raise_above(true);
     #[cfg(target_os = "linux")]
