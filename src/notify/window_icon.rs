@@ -18,13 +18,54 @@ mod imp {
 
     pub(super) fn set() {
         let Ok((conn, screen_num)) = x11rb::connect(None) else {
-            log::debug!("无 X 连接,跳过多档图标");
+            log::debug!("无 X 连接,跳过窗口属性设置");
             return;
         };
         let root = conn.setup().roots[screen_num].root;
         if let Some(wid) = find_window(&conn, root) {
             write_blob(&conn, wid, ICON_BLOB);
+            skip_taskbar(&conn, root, wid);
         }
+    }
+
+    /// 设置 _NET_WM_STATE_SKIP_TASKBAR:弹窗不占任务栏条目
+    /// (通知类窗口不应出现在任务栏,winit 的 X11 层不透出此能力故自行设置)
+    fn skip_taskbar(conn: &x11rb::rust_connection::RustConnection, root: u32, wid: u32) {
+        let state = conn
+            .intern_atom(false, b"_NET_WM_STATE")
+            .ok()
+            .and_then(|c| c.reply().ok())
+            .map(|a| a.atom);
+        let skip = conn
+            .intern_atom(false, b"_NET_WM_STATE_SKIP_TASKBAR")
+            .ok()
+            .and_then(|c| c.reply().ok())
+            .map(|a| a.atom);
+        let (Some(state), Some(skip)) = (state, skip) else {
+            return;
+        };
+        let event = x11rb::protocol::xproto::ClientMessageEvent {
+            response_type: x11rb::protocol::xproto::CLIENT_MESSAGE_EVENT,
+            format: 32,
+            sequence: 0,
+            window: wid,
+            type_: state,
+            data: x11rb::protocol::xproto::ClientMessageData::from([
+                1, // _NET_WM_STATE_ADD
+                skip,
+                0,
+                0,
+                1, // source indication: application
+            ]),
+        };
+        let _ = conn.send_event(
+            false,
+            root,
+            x11rb::protocol::xproto::EventMask::SUBSTRUCTURE_REDIRECT
+                | x11rb::protocol::xproto::EventMask::SUBSTRUCTURE_NOTIFY,
+            event,
+        );
+        let _ = conn.flush();
     }
 
     /// 定位本服务窗口:EWMH 客户端清单优先;精简 WM 不维护清单时递归全树兜底
