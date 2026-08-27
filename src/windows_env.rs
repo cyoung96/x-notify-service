@@ -45,7 +45,7 @@ pub const fn attach_parent_console() {}
 /// (通知类窗口不应出现在任务栏;Slint/winit 不透出 skip-taskbar 属性)
 #[cfg(windows)]
 // 取屏 FFI 同款豁免
-#[allow(unsafe_code)]
+#[allow(unsafe_code, clippy::multiple_unsafe_ops_per_block)]
 pub fn skip_taskbar() {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         FindWindowW, GWL_EXSTYLE, GetWindowLongPtrW, SetWindowLongPtrW, WS_EX_TOOLWINDOW,
@@ -57,9 +57,10 @@ pub fn skip_taskbar() {
         return;
     }
     // SAFETY: HWND 来自 FindWindow(有效窗口);仅读写扩展样式位
+    let ex_style = WS_EX_TOOLWINDOW as isize;
     unsafe {
         let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_TOOLWINDOW as isize);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | ex_style);
     }
 }
 
