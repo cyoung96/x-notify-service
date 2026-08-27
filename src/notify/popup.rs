@@ -73,6 +73,9 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
     position(&popup, &area);
     let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
     popup.on_close_requested(move || remove(id));
+    // Windows:WS_EX_TOOLWINDOW 须在 show 之前设置,否则任务栏按钮已创建
+    #[cfg(windows)]
+    crate::windows_env::skip_taskbar();
     if let Err(e) = popup.show() {
         log::warn!("弹窗显示失败,本条通知走系统通知: {e}");
         crate::notify::fallback::show_raw(title, &html::to_plain_text(body_html));

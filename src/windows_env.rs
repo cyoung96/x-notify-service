@@ -40,6 +40,29 @@ pub fn attach_parent_console() {
 #[cfg(not(windows))]
 pub const fn attach_parent_console() {}
 
+/// 弹窗不占任务栏条目:按窗口标题(与 Linux 同口径)找到 HWND,加 WS_EX_TOOLWINDOW。
+/// 须在 show() 之前调用,否则任务栏按钮已创建。
+/// (通知类窗口不应出现在任务栏;Slint/winit 不透出 skip-taskbar 属性)
+#[cfg(windows)]
+// 取屏 FFI 同款豁免
+#[allow(unsafe_code)]
+pub fn skip_taskbar() {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        FindWindowW, GWL_EXSTYLE, GetWindowLongPtrW, SetWindowLongPtrW, WS_EX_TOOLWINDOW,
+    };
+    let title: Vec<u16> = "x-notify-service\0".encode_utf16().collect();
+    // SAFETY: 常量入参;仅查标题匹配的窗口句柄,不做其他操作
+    let hwnd = unsafe { FindWindowW(std::ptr::null(), title.as_ptr()) };
+    if hwnd.is_null() {
+        return;
+    }
+    // SAFETY: HWND 来自 FindWindow(有效窗口);仅读写扩展样式位
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_TOOLWINDOW as isize);
+    }
+}
+
 #[cfg(windows)]
 // Win32 注册表/消息广播 FFI
 #[allow(unsafe_code, clippy::multiple_unsafe_ops_per_block)]

@@ -52,10 +52,7 @@ mod imp {
             type_: state,
             data: x11rb::protocol::xproto::ClientMessageData::from([
                 1, // _NET_WM_STATE_ADD
-                skip,
-                0,
-                0,
-                1, // source indication: application
+                skip, 0, 0, 1, // source indication: application
             ]),
         };
         let _ = conn.send_event(
