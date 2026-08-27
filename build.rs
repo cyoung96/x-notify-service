@@ -31,6 +31,7 @@ fn main() {
     slint_build::compile("ui/popup.slint").unwrap();
 
     let target = std::env::var("TARGET").unwrap_or_default();
+    let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
 
     // Windows:嵌入图标资源(交叉编译 windres;文件管理器/任务栏显示)。
     // 本地无 windres(纯 cargo check 场景)跳过并告警,CI 打包机恒有 mingw 工具链
@@ -80,11 +81,7 @@ fn main() {
             println!("cargo:rerun-if-changed={path}");
         }
         out.push_str("];\n");
-        std::fs::write(
-            format!("{}/window_icons.rs", std::env::var("OUT_DIR").unwrap()),
-            out,
-        )
-        .unwrap();
+        std::fs::write(out_dir.join("window_icons.rs"), out).unwrap();
     }
 
     // 内嵌演示页用的 SDK:dist 存在则复制,否则写占位(纯 cargo build 不依赖 pnpm;
@@ -93,7 +90,6 @@ fn main() {
     let content = std::fs::read_to_string(sdk_dist).unwrap_or_else(|_| {
         "// sdk.js 占位:先在 sdk/js 下 pnpm -F @hexinfo/x-notify-service-sdk build".to_string()
     });
-    let out = std::env::var("OUT_DIR").unwrap();
-    std::fs::write(format!("{out}/embedded-sdk.js"), content).unwrap();
+    std::fs::write(out_dir.join("embedded-sdk.js"), content).unwrap();
     println!("cargo:rerun-if-changed={}", sdk_dist.display());
 }

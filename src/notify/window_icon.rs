@@ -62,7 +62,7 @@ mod imp {
                 let (words, _) = r.value.as_chunks::<4>();
                 words.iter().map(|c| u32::from_le_bytes(*c)).collect()
             })
-            .unwrap_or_default();
+            .unwrap_or_default(); // 属性不存在时从空开始
         if !atoms.contains(&skip) {
             atoms.push(skip);
             let bytes: Vec<u8> = atoms.iter().flat_map(|a| a.to_ne_bytes()).collect();

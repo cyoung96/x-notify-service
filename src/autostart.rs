@@ -5,6 +5,8 @@
 //! - Linux: ~/.config/autostart/*.desktop(XDG)
 //! - macOS: ~/Library/LaunchAgents/*.plist
 
+use std::io::ErrorKind;
+
 const SERVE_ARG: &str = "serve";
 
 #[cfg(windows)]
@@ -33,7 +35,7 @@ pub fn disable() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     match run.delete_value(crate::config::APP_DIR_NAME) {
         Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e.into()),
     }
 }
@@ -120,7 +122,7 @@ pub fn enable() -> Result<(), Box<dyn std::error::Error>> {
 pub fn disable() -> Result<(), Box<dyn std::error::Error>> {
     match std::fs::remove_file(entry_path()) {
         Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e.into()),
     }
 }

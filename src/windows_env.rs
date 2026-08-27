@@ -41,7 +41,7 @@ pub fn attach_parent_console() {
 pub const fn attach_parent_console() {}
 
 /// 弹窗不占任务栏条目:按窗口标题(与 Linux 同口径)找到 HWND,加 WS_EX_TOOLWINDOW。
-/// 须在 show() 之前调用,否则任务栏按钮已创建。
+/// 须在首次 show() 后调用,此时原生 HWND 已创建;进程内只存在一个同标题窗口。
 /// (通知类窗口不应出现在任务栏;Slint/winit 不透出 skip-taskbar 属性)
 #[cfg(windows)]
 // 取屏 FFI 同款豁免

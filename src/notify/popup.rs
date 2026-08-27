@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::{PopupWindow, html};
 
@@ -10,18 +9,25 @@ const W_LOGICAL: f64 = 367.0;
 const H_LOGICAL: f64 = 206.0;
 const MARGIN: f64 = 14.0;
 
-static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+fn get_or_try_init<T, E>(
+    slot: &mut Option<T>,
+    init: impl FnOnce() -> Result<T, E>,
+) -> Result<(&mut T, bool), E> {
+    match slot {
+        Some(value) => Ok((value, false)),
+        empty @ None => Ok((empty.insert(init()?), true)),
+    }
+}
 
 struct Entry {
-    id: u64,
     popup: PopupWindow,
     // 显示后位置复校定时器(机制见 fixup_timers);Entry 移除时随之失效
-    _fixups: Vec<slint::Timer>,
+    fixups: Vec<slint::Timer>,
     /// 弹窗关闭后退出事件循环(notify 子命令单发进程用;服务模式恒 false)
     quit_on_close: bool,
 }
 
-// 仅在事件循环线程(GUI 主线程)经 invoke_from_event_loop 访问;不堆叠,同时最多一条
+// 仅在事件循环线程(GUI 主线程)经 invoke_from_event_loop 访问;进程内始终复用同一窗口
 thread_local! {
     static CURRENT: RefCell<Option<Entry>> = const { RefCell::new(None) };
 }
@@ -59,42 +65,37 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
         return;
     };
 
-    let popup = match PopupWindow::new() {
-        Ok(p) => p,
-        Err(e) => {
-            log::warn!("弹窗创建失败,本条通知走系统通知: {e}");
-            crate::notify::fallback::show_raw(title, &html::to_plain_text(body_html));
-            return;
-        }
-    };
-    popup.set_notif_title(slint::SharedString::from(title));
-    set_body(&popup, body_html);
-    // 先定位再显示,避免窗口先出现在默认位置再跳到右下角
-    position(&popup, &area);
-    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-    popup.on_close_requested(move || remove(id));
-    if let Err(e) = popup.show() {
-        log::warn!("弹窗显示失败,本条通知走系统通知: {e}");
-        crate::notify::fallback::show_raw(title, &html::to_plain_text(body_html));
-        return;
-    }
-    // show 后窗口已创建:Windows 用 FindWindow 定位 + WS_EX_TOOLWINDOW
-    // (Shell 对已映射窗口的样式变更会同步移除任务栏按钮)
-    #[cfg(windows)]
-    crate::windows_env::skip_taskbar();
-    // 已映射后再切置顶:触发映射后的 ClientMessage,WM 才会应答
-    popup.set_raise_above(true);
-    #[cfg(target_os = "linux")]
-    crate::notify::window_icon::set();
-
-    let fixups = fixup_timers(&popup, area);
-    CURRENT.with(|current| {
+    let shown = CURRENT.with(|current| {
         let mut current = current.borrow_mut();
-        if let Some(old) = current.take() {
-            let _ = old.popup.window().hide();
-            log::debug!("新通知顶掉旧通知");
+        let (entry, created) = get_or_try_init(&mut current, || {
+            let popup = PopupWindow::new()?;
+            popup.on_close_requested(hide_current);
+            Ok::<_, slint::PlatformError>(Entry {
+                popup,
+                fixups: Vec::new(),
+                quit_on_close,
+            })
+        })?;
+        entry.quit_on_close = quit_on_close;
+        entry
+            .popup
+            .set_notif_title(slint::SharedString::from(title));
+        set_body(&entry.popup, body_html);
+        // 先定位再显示,避免窗口先出现在默认位置再跳到右下角
+        position(&entry.popup, &area);
+        entry.popup.show()?;
+
+        // 原生窗口在首次 show 后存在;同一 PopupWindow/原生窗口后续只更新内容
+        if created {
+            #[cfg(windows)]
+            crate::windows_env::skip_taskbar();
+            #[cfg(target_os = "linux")]
+            crate::notify::window_icon::set();
         }
-        position(&popup, &area);
+        // 已映射后再切置顶:触发映射后的 ClientMessage,WM 才会应答
+        entry.popup.set_raise_above(true);
+        entry.fixups = fixup_timers(&entry.popup, area);
+
         let (px, py) = landing(&area);
         log::info!(
             "弹窗定位: 工作区({},{},{}x{}) → ({px},{py})",
@@ -103,13 +104,12 @@ pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
             area.w,
             area.h
         );
-        *current = Some(Entry {
-            id,
-            popup,
-            _fixups: fixups,
-            quit_on_close,
-        });
+        Ok::<_, slint::PlatformError>(())
     });
+    if let Err(e) = shown {
+        log::warn!("弹窗显示失败,本条通知走系统通知: {e}");
+        crate::notify::fallback::show_raw(title, &html::to_plain_text(body_html));
+    }
 }
 
 /// 显示后多次复校位置,对抗 WM 重摆(部分窗口管理器会把新映射窗口摆到默认位);
@@ -132,7 +132,7 @@ fn fixup_timers(popup: &PopupWindow, area: crate::screen::WorkArea) -> Vec<slint
                         log::warn!("WM 重摆了弹窗(现 {cur:?}),复校回 {expected:?}");
                     }
                     position(&p, &area);
-                    // 重复写入多档图标:slint 的单图设置是惰性的,后写者赢
+                    // 首次 tick 兜底:若 spawn 时 find_window 未命中(WM 未就绪),补设属性
                     #[cfg(target_os = "linux")]
                     crate::notify::window_icon::set();
                 }
@@ -143,7 +143,7 @@ fn fixup_timers(popup: &PopupWindow, area: crate::screen::WorkArea) -> Vec<slint
     fixups
 }
 
-/// 关闭并移除当前条目;`quit_on_close` 条目在关闭后请求退出事件循环
+/// 隐藏当前窗口;`quit_on_close` 条目在关闭后请求退出事件循环
 fn hide_entry(entry: &Entry) {
     let quit = entry.quit_on_close;
     let _ = entry.popup.window().hide();
@@ -152,12 +152,10 @@ fn hide_entry(entry: &Entry) {
     }
 }
 
-fn remove(id: u64) {
+fn hide_current() {
     CURRENT.with(|current| {
-        let mut current = current.borrow_mut();
-        let is_current = current.as_ref().is_some_and(|e| e.id == id);
-        if is_current && let Some(entry) = current.take() {
-            hide_entry(&entry);
+        if let Some(entry) = current.borrow().as_ref() {
+            hide_entry(entry);
         }
     });
 }
@@ -165,8 +163,8 @@ fn remove(id: u64) {
 /// 关闭当前弹窗(幂等:无弹窗时为空操作)。只应在事件循环线程调用。
 pub fn close_current() {
     CURRENT.with(|current| {
-        if let Some(entry) = current.borrow_mut().take() {
-            hide_entry(&entry);
+        if let Some(entry) = current.borrow().as_ref() {
+            hide_entry(entry);
             log::debug!("弹窗被显式关闭");
         }
     });
@@ -216,4 +214,31 @@ fn set_body(popup: &PopupWindow, body_html: &str) {
         })
         .collect();
     popup.set_body_lines(slint::ModelRc::new(slint::VecModel::from(lines)));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_or_try_init;
+
+    #[test]
+    fn get_or_try_init_reuses_existing_value() {
+        let mut slot = None;
+        let mut creates = 0;
+
+        let (_, first_created) = get_or_try_init(&mut slot, || {
+            creates += 1;
+            Ok::<_, ()>("window")
+        })
+        .unwrap();
+        let (value, second_created) = get_or_try_init(&mut slot, || {
+            creates += 1;
+            Ok::<_, ()>("replacement")
+        })
+        .unwrap();
+
+        assert!(first_created);
+        assert!(!second_created);
+        assert_eq!(creates, 1);
+        assert_eq!(*value, "window");
+    }
 }
