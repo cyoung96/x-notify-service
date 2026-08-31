@@ -30,7 +30,7 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: Swatinem/rust-cache@v2
       # apt 包缓存:runner 一次性、系统层无留存,靠缓存归档免重复下载
       # 键带周数,每周自动换血对齐新版本
@@ -47,7 +47,7 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       # SDK 先于 cargo test:tests_http 会校验内嵌 sdk.js 非占位桩,
       # 而 build.rs 需 dist 产物存在才嵌入真产物
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install -g pnpm@10
@@ -75,7 +75,7 @@ jobs:
           - name: windows
             os: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # 缓存键与 release.yml 各构建 job 完全一致(tag 回退取 main 缓存);
       # .ci-cache 与 target 拆开存(合并会因一方 tar 失败连坐全丢)
       - if: runner.os == 'Linux'
@@ -95,7 +95,7 @@ jobs:
         with:
           workspaces: .
           shared-key: release-windows-msvc
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install -g pnpm@10

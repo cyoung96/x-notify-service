@@ -25,7 +25,7 @@ jobs:
   linux-x86_64:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # 试验:target/release 单独缓存(缩小范围避免全量 target 的 tar 失败)
       - uses: actions/cache@v4
         id: cargo-home
@@ -39,7 +39,7 @@ jobs:
           path: target/linux-x86_64
           key: linux-x86_64-target-${{ hashFiles('Cargo.lock') }}
           restore-keys: linux-x86_64-target-
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install -g pnpm@10
@@ -52,7 +52,7 @@ jobs:
   linux-aarch64:
     runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/cache@v4
         with:
           path: |
@@ -60,7 +60,7 @@ jobs:
             target
           key: linux-aarch64-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: linux-aarch64-cargo-
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install -g pnpm@10
@@ -75,13 +75,13 @@ jobs:
     # 且产物可在构建机真实冒烟(交叉编译做不到);公开仓库 runner 免费
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # rust-cache 默认缓存 cargo 注册表 + target/(全量增量,与 Linux 手工对齐)
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
           shared-key: release-windows-msvc
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
       - run: npm install -g pnpm@10
