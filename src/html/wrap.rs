@@ -87,7 +87,7 @@ pub(super) fn wrap_lines(lines: LogicalLines) -> WrappedLines {
     WrappedLines(out)
 }
 
-const fn char_units(c: char) -> f64 {
+pub(super) const fn char_units(c: char) -> f64 {
     if c.is_ascii() { 0.55 } else { 1.0 }
 }
 
@@ -169,36 +169,38 @@ mod tests {
 
 #[cfg(test)]
 mod more_tests {
-    use super::super::{parse, to_plain_text, to_styled_lines};
+    use super::super::{parse, to_lines, to_plain_text, BASE_FONT_SIZE};
 
     /// 基础子集:加粗/颜色/字号/br/实体/未知标签剥除
     #[test]
-    fn subset_parse_and_markup() {
+    fn subset_parse_to_structured_lines() {
         let p = parse(
             "<b>紧急</b> 普通 <font color=\"#d93025\">红</font><br>第二行 <i>斜体剥除</i> &amp; 实体",
         );
-        let lines = to_styled_lines(&p);
+        let lines = to_lines(&p);
         assert_eq!(lines.len(), 2, "br 应产生两行");
-        assert!(lines[0].0.contains("**紧急**"), "加粗标记: {}", lines[0].0);
-        assert!(
-            lines[0].0.contains("<font color=\"#d93025\">红</font>"),
-            "颜色标记: {}",
-            lines[0].0
-        );
-        assert!(!lines[0].0.contains("<i>"), "未知标签应剥除");
-        assert!(!lines[1].0.contains("斜体剥除</i>"));
-        assert!(lines[1].0.contains("斜体剥除"), "剥除后内文保留");
-        assert!(lines[1].0.contains("& 实体"), "实体应解码: {}", lines[1].0);
-        assert!(lines[0].1.is_none(), "无显式字号时为 None");
+        assert_eq!(lines[0].size, BASE_FONT_SIZE);
+        let bold = lines[0].runs.iter().find(|r| r.bold).unwrap();
+        assert_eq!(bold.text, "紧急");
+        let red = lines[0]
+            .runs
+            .iter()
+            .find(|r| r.color == Some((0xd9, 0x30, 0x25)))
+            .unwrap();
+        assert_eq!(red.text, "红");
+        assert!(!lines[1].runs.iter().any(|r| r.bold), "未知标签剥除不产生样式");
+        let second = lines[1].runs.iter().map(|r| r.text.as_str()).collect::<String>();
+        assert!(second.contains("斜体剥除"), "剥除后内文保留");
+        assert!(second.contains("& 实体"), "实体应解码: {second}");
     }
 
     /// 字号按行生效;超范围字号忽略
     #[test]
     fn font_size_per_line_and_clamp() {
         let p = parse("<font size=\"17\">大字行</font><br><font size=\"99\">非法字号回落</font>");
-        let lines = to_styled_lines(&p);
-        assert_eq!(lines[0].1, Some(17));
-        assert_eq!(lines[1].1, None, "超范围字号应忽略");
+        let lines = to_lines(&p);
+        assert_eq!(lines[0].size, 17);
+        assert_eq!(lines[1].size, BASE_FONT_SIZE, "超范围字号应回落默认");
     }
 
     /// 超过 `MAX_LINES` 截断加省略号
@@ -206,9 +208,9 @@ mod more_tests {
     fn truncate_with_ellipsis() {
         let text = std::array::from_fn::<_, 8, _>(|_| "很长的一行内容呀".repeat(3)).join("<br>");
         let p = parse(&text);
-        let lines = to_styled_lines(&p);
+        let lines = to_lines(&p);
         assert_eq!(lines.len(), super::MAX_LINES);
-        assert!(lines.last().unwrap().0.ends_with('…'));
+        assert_eq!(lines.last().unwrap().runs.last().unwrap().text, "…");
     }
 
     /// 纯文本提取:标签全剥、行按 \n 连接

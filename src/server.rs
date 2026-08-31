@@ -202,9 +202,9 @@ fn handle(rt: &Runtime, req: Request) {
         }
         (Method::Post, "/notify") if authorized(cfg, &req) => handle_notify(cfg, cors, req),
         (Method::Post, "/close") if authorized(cfg, &req) => {
-            // 显式关闭当前弹窗(幂等);经事件循环投递到 GUI 线程
-            if let Err(e) = slint::invoke_from_event_loop(notify::popup::close_current) {
-                log::warn!("关闭弹窗投递失败: {e}");
+            // 显式关闭当前弹窗(幂等);经 bridge 通道投递到 GUI 线程
+            if !notify::app::post(notify::app::Message::Close) {
+                log::warn!("关闭弹窗投递失败(事件循环未就绪)");
             }
             send_json(req, cors, 200, r#"{"ok":true}"#.into());
         }

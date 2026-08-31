@@ -46,14 +46,9 @@ pub fn run(cfg: &Config, title: String, body: Option<String>, fallback: bool) {
         return;
     }
 
-    let posted =
-        slint::invoke_from_event_loop(move || notify::popup::spawn(&title, &body_html, true));
-    if posted.is_err() {
-        eprintln!("弹窗投递失败");
-        std::process::exit(1);
-    }
     println!("弹窗已显示(无运行中服务,本进程驻留至点击关闭)");
-    if let Err(e) = slint::run_event_loop_until_quit() {
+    // 单发模式:daemon 预置本条通知,弹窗关闭后事件循环退出、进程结束
+    if let Err(e) = notify::app::run_single(title, body_html) {
         eprintln!("事件循环异常: {e}");
         std::process::exit(1);
     }

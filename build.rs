@@ -28,8 +28,6 @@ const fn itoa_octet(octet: u8) -> &'static str {
 }
 
 fn main() {
-    slint_build::compile("ui/popup.slint").unwrap();
-
     let target = std::env::var("TARGET").unwrap_or_default();
     let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
 

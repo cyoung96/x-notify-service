@@ -16,15 +16,20 @@ log = "0.4"
 clap = { version = "4", features = ["derive"] }
 dirs = "6"
 fd-lock = "4"
-slint = { version = "1", default-features = false, features = [
-    "std",
-    "compat-1-2",
-    "renderer-software",
-    # 只带 X11 后端:Wayland 会话在应用层即降级系统通知,二进制无需 wayland 协议栈(显著减小体积)
-    "backend-winit-x11",
+iced = { version = "0.14", default-features = false, features = [
+    # 软件渲染(CPU/softbuffer,老 Linux 无 GPU 友好),不拉 wgpu
+    "tiny-skia",
+    # 只带 X11 后端:Wayland 会话在应用层即降级系统通知,二进制无需 wayland 协议栈
+    "x11",
+    # rich_text/span 的 color 构建器方法在此 feature 门后
+    "advanced",
+    # 复杂文字整形(CJK 必需)
+    "advanced-shaping",
+    # 像素对齐(软渲染下文字锐利)
+    "crisp",
+    # 默认执行器(纯线程池,不带 tokio)
+    "thread-pool",
 ] }
-i-slint-backend-selector = { version = "1", default-features = false, features = ["unstable-winit-030"] }
-winit = { version = "0.30", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
@@ -46,12 +51,10 @@ objc2-app-kit = { version = "0.3", features = ["NSScreen"] }
 
 
 [build-dependencies]
-slint-build = "1"
 winresource = "0.1"
 png = "0.17"
 
 # ── 最严格 lint 配置:五组全 deny,仅对互斥/不适用项定向豁免 ──
-# Slint 生成代码已在 main.rs 引入处单独豁免(仅保留 correctness 审查)
 [lints.rust]
 unsafe_code = "deny" # 仅 screen.rs 各平台取屏 FFI,以局部 allow + 安全注释标注
 

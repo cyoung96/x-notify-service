@@ -1,246 +1,28 @@
-use std::cell::RefCell;
-use std::sync::OnceLock;
+//! 弹窗几何、窗口设置与 GUI 探测(纯逻辑,iced 程序体在 `app.rs`)。
 
-use crate::{PopupWindow, html};
-
-use slint::ComponentHandle as _;
-
-/// 弹窗固定逻辑尺寸(与 ui/popup.slint 保持一致),白色圆角卡片
-const W_LOGICAL: f64 = 367.0;
-const H_LOGICAL: f64 = 206.0;
+/// 弹窗固定逻辑尺寸(方角白卡,不依赖窗口透明),与 `app.rs` 视图保持一致
+pub const W_LOGICAL: f64 = 367.0;
+pub const H_LOGICAL: f64 = 206.0;
+/// 弹窗与屏幕右下角边距(物理像素,随 scale 缩放)
 const MARGIN: f64 = 14.0;
+/// 窗口标题:仅作 WM/任务栏/测试识别用,无框窗口不显示
+pub const WINDOW_TITLE: &str = "x-notify-service";
 
-fn get_or_try_init<T, E>(
-    slot: &mut Option<T>,
-    init: impl FnOnce() -> Result<T, E>,
-) -> Result<(&mut T, bool), E> {
-    match slot {
-        Some(value) => Ok((value, false)),
-        empty @ None => Ok((empty.insert(init()?), true)),
-    }
-}
+/// 入场滑入距离(px)与时长(ms)
+pub const SLIDE_PX: f32 = 26.0;
+pub const SLIDE_MS: u64 = 220;
 
-struct Entry {
-    popup: PopupWindow,
-    // 新通知替换这组定时器,旧复校任务随 Timer drop 取消
-    fixups: Vec<slint::Timer>,
-    /// 弹窗关闭后退出事件循环(notify 子命令单发进程用;服务模式恒 false)
-    quit_on_close: bool,
-}
+/// 显示后位置复校节奏(对抗 WM 把新映射窗口重摆到默认位)
+pub const FIXUP_DELAYS_MS: [u64; 4] = [50, 120, 250, 500];
 
-// 仅在事件循环线程(GUI 主线程)经 invoke_from_event_loop 访问;进程内始终复用同一窗口
-thread_local! {
-    static CURRENT: RefCell<Option<Entry>> = const { RefCell::new(None) };
-}
+/// 标题区可用宽度:窗口 367 − 左 20 − 右 12 − 关闭钮占位 28
+const TITLE_WIDTH_PX: f64 = 307.0;
+const TITLE_FONT_PX: f64 = 16.0;
 
-static BACKEND_READY: OnceLock<bool> = OnceLock::new();
-
-#[cfg(windows)]
-fn window_attributes(
-    attributes: winit::window::WindowAttributes,
-) -> winit::window::WindowAttributes {
-    use winit::platform::windows::WindowAttributesExtWindows as _;
-    attributes
-        .with_window_level(winit::window::WindowLevel::AlwaysOnTop)
-        .with_skip_taskbar(true)
-}
-
-#[cfg(target_os = "linux")]
-fn window_attributes(
-    attributes: winit::window::WindowAttributes,
-) -> winit::window::WindowAttributes {
-    use winit::platform::x11::{WindowAttributesExtX11 as _, WindowType};
-    attributes
-        .with_window_level(winit::window::WindowLevel::AlwaysOnTop)
-        .with_x11_window_type(vec![WindowType::Notification])
-}
-
-#[cfg(not(any(windows, target_os = "linux")))]
-const fn window_attributes(
-    attributes: winit::window::WindowAttributes,
-) -> winit::window::WindowAttributes {
-    attributes
-}
-
-fn select_backend() -> bool {
-    *BACKEND_READY.get_or_init(|| {
-        let selected = i_slint_backend_selector::api::BackendSelector::new()
-            .backend_name("winit".into())
-            .with_winit_window_attributes_hook(window_attributes)
-            .select();
-        match selected {
-            Ok(()) => true,
-            Err(e) => {
-                log::warn!("GUI 后端初始化失败: {e}");
-                false
-            }
-        }
-    })
-}
-
-/// 启动时探测弹窗 GUI 是否可用(必须在主线程调用,`run_event_loop` 之前)
-pub fn gui_probe() -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        if std::env::var_os("DISPLAY").is_none() && std::env::var_os("WAYLAND_DISPLAY").is_none() {
-            log::warn!("无 DISPLAY/WAYLAND_DISPLAY,弹窗不可用");
-            return false;
-        }
-    }
-    if !select_backend() {
-        return false;
-    }
-    let probe = std::panic::catch_unwind(|| PopupWindow::new().map(drop));
-    match probe {
-        Ok(Ok(())) => true,
-        Ok(Err(e)) => {
-            log::warn!("GUI 初始化失败,弹窗不可用: {e}");
-            false
-        }
-        Err(_) => {
-            log::warn!("GUI 初始化 panic,弹窗不可用");
-            false
-        }
-    }
-}
-
-/// 展示一条弹窗(只应在事件循环线程调用)。
-/// 弹窗常驻不超时:仅点击关闭,或被新通知顶掉。
-/// `quit_on_close`:弹窗关闭后退出事件循环(仅 notify 子命令单发进程传 true)。
-pub fn spawn(title: &str, body_html: &str, quit_on_close: bool) {
-    let Some(area) = crate::screen::work_area() else {
-        log::warn!("无法获取屏幕工作区,本条通知走系统通知");
-        crate::notify::fallback::show_raw(title, &html::to_plain_text(body_html));
-        return;
-    };
-
-    let shown = CURRENT.with(|current| {
-        let mut current = current.borrow_mut();
-        let (entry, created) = get_or_try_init(&mut current, || {
-            let popup = PopupWindow::new()?;
-            popup.on_close_requested(hide_current);
-            Ok::<_, slint::PlatformError>(Entry {
-                popup,
-                fixups: Vec::new(),
-                quit_on_close,
-            })
-        })?;
-        entry.quit_on_close = quit_on_close;
-        entry
-            .popup
-            .set_notif_title(slint::SharedString::from(title));
-        set_body(&entry.popup, body_html);
-        // 先定位再显示,避免窗口先出现在默认位置再跳到右下角
-        position(&entry.popup, &area);
-        entry.popup.show()?;
-
-        // 原生窗口在首次 show 后存在;同一 PopupWindow/原生窗口后续只更新内容
-        if created {
-            #[cfg(target_os = "linux")]
-            crate::notify::window_icon::set();
-        }
-        // 已映射后再切置顶:触发映射后的 ClientMessage,WM 才会应答
-        entry.popup.set_raise_above(true);
-        entry.fixups = fixup_timers(&entry.popup, area, created);
-
-        let (px, py) = landing(&area);
-        log::info!(
-            "弹窗定位: 工作区({},{},{}x{}) → ({px},{py})",
-            area.x,
-            area.y,
-            area.w,
-            area.h
-        );
-        Ok::<_, slint::PlatformError>(())
-    });
-    if let Err(e) = shown {
-        log::warn!("弹窗显示失败,本条通知走系统通知: {e}");
-        crate::notify::fallback::show_raw(title, &html::to_plain_text(body_html));
-    }
-}
-
-/// 显示后多次复校位置,对抗 WM 重摆(部分窗口管理器会把新映射窗口摆到默认位);
-/// 每次触发先对比现位置,发现被移动则告警留痕再复校。
-/// 返回的定时器由 Entry 持有,下一条通知会整体替换。
-const fn should_retry_x11_init(created: bool, delay_ms: u64) -> bool {
-    created && delay_ms == 50
-}
-
-fn fixup_timers(
-    popup: &PopupWindow,
-    area: crate::screen::WorkArea,
-    retry_x11_init: bool,
-) -> Vec<slint::Timer> {
-    let weak = popup.as_weak();
-    let mut fixups = Vec::with_capacity(4);
-    for delay_ms in [50u64, 120, 250, 500] {
-        let weak = weak.clone();
-        let t = slint::Timer::default();
-        t.start(
-            slint::TimerMode::SingleShot,
-            std::time::Duration::from_millis(delay_ms),
-            move || {
-                if let Some(p) = weak.upgrade() {
-                    let expected = landing(&area);
-                    let cur = p.window().position();
-                    if (cur.x - expected.0).abs() > 2i32 || (cur.y - expected.1).abs() > 2i32 {
-                        log::warn!("WM 重摆了弹窗(现 {cur:?}),复校回 {expected:?}");
-                    }
-                    position(&p, &area);
-                    if should_retry_x11_init(retry_x11_init, delay_ms) {
-                        // 首次 tick 兜底:spawn 后原生窗口尚未可查时重试一次
-                        #[cfg(target_os = "linux")]
-                        crate::notify::window_icon::set();
-                    }
-                }
-            },
-        );
-        fixups.push(t);
-    }
-    fixups
-}
-
-/// 隐藏当前窗口;`quit_on_close` 条目在关闭后请求退出事件循环
-fn hide_entry(entry: &Entry) {
-    let quit = entry.quit_on_close;
-    let _ = entry.popup.window().hide();
-    if quit {
-        let _ = slint::quit_event_loop();
-    }
-}
-
-fn hide_current() {
-    CURRENT.with(|current| {
-        if let Some(entry) = current.borrow().as_ref() {
-            hide_entry(entry);
-        }
-    });
-}
-
-/// 关闭当前弹窗(幂等:无弹窗时为空操作)。只应在事件循环线程调用。
-pub fn close_current() {
-    CURRENT.with(|current| {
-        if let Some(entry) = current.borrow().as_ref() {
-            hide_entry(entry);
-            log::debug!("弹窗被显式关闭");
-        }
-    });
-}
-
-/// 定位到屏幕工作区右下角(任务栏/dock 上方)。
-/// area 坐标已统一物理像素;弹窗逻辑尺寸按屏幕 scale 换算。
-fn position(popup: &PopupWindow, area: &crate::screen::WorkArea) {
-    let (x, y) = landing(area);
-    log::debug!(
-        "弹窗定位: area=({},{},{}x{}) pos=({x},{y})",
-        area.x,
-        area.y,
-        area.w,
-        area.h
-    );
-    popup
-        .window()
-        .set_position(slint::PhysicalPosition::new(x, y));
+/// 首个 fixup tick 承担 X11 属性兜底重试:窗口新开时原生窗可能尚未可查
+/// (每次通知都是新开窗口,不存在旧代码"仅首次窗口"的豁免)
+pub const fn should_retry_x11_init(delay_ms: u64) -> bool {
+    delay_ms == 50
 }
 
 /// 工作区右下角落点(物理像素,已扣除边距)。
@@ -257,52 +39,156 @@ pub fn landing(area: &crate::screen::WorkArea) -> (i32, i32) {
     )
 }
 
-/// 解析 HTML 子集并逐行填充正文(行距/字号按行生效)
-fn set_body(popup: &PopupWindow, body_html: &str) {
-    let parsed = html::parse(body_html);
-    let lines: Vec<crate::BodyLine> = html::to_styled_lines(&parsed)
-        .into_iter()
-        .map(|(markup, size)| crate::BodyLine {
-            text: slint::StyledText::from_markdown(&markup).unwrap_or_else(|e| {
-                log::warn!("正文行解析失败,按纯文本渲染: {e}");
-                slint::StyledText::from_plain_text(&markup)
-            }),
-            size: f32::from(size.unwrap_or(html::BASE_FONT_SIZE)),
-        })
-        .collect();
-    popup.set_body_lines(slint::ModelRc::new(slint::VecModel::from(lines)));
+/// 落点的逻辑坐标(iced 窗口 API 以逻辑像素计)。
+// f64→f32/i32→f32:屏幕 scale 与像素坐标的精度远低于 f32 可表,失真可忽略
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn logical_landing(area: &crate::screen::WorkArea) -> iced::Point {
+    let (x, y) = landing(area);
+    let scale = area.scale.max(1.0) as f32;
+    iced::Point::new(x as f32 / scale, y as f32 / scale)
+}
+
+/// ease-out 三次曲线(t∈[0,1] → 进度),入场滑入用
+pub const fn ease_out_cubic(t: f32) -> f32 {
+    let inv = 1.0 - t;
+    1.0 - inv * inv * inv
+}
+
+/// 标题单行截断:超宽加省略号(与正文折行共用同一套估宽系数;
+/// iced 0.14 的 Text 无 elide,截断在数据层完成)
+pub fn elide_title(title: &str) -> String {
+    let max_units = TITLE_WIDTH_PX / TITLE_FONT_PX;
+    let mut units = 0f64;
+    for (idx, ch) in title.char_indices() {
+        // 省略号预占 1 单位,避免截断后仍超宽
+        if units + crate::html::char_units(ch) > max_units - 1.0 {
+            let mut out = title[..idx].to_string();
+            out.push('…');
+            return out;
+        }
+        units += crate::html::char_units(ch);
+    }
+    title.to_owned()
+}
+
+/// 启动时探测弹窗 GUI 是否可用:能连上窗口系统并取到工作区即认为可用
+/// (Slint 时代靠试建窗口探测;iced daemon 启动即占据主线程,探测改为无副作用的工作区查询)
+pub fn gui_probe() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::var_os("DISPLAY").is_none() && std::env::var_os("WAYLAND_DISPLAY").is_none() {
+            log::warn!("无 DISPLAY/WAYLAND_DISPLAY,弹窗不可用");
+            return false;
+        }
+    }
+    let area = crate::screen::work_area();
+    if area.is_none() {
+        log::warn!("无法连接窗口系统/获取工作区,弹窗不可用");
+    }
+    area.is_some()
+}
+
+/// 构造弹窗窗口设置:置顶/无框/固定尺寸/右下角创建期定位(避免先默认位再跳)。
+/// iced 不暴露 winit attributes hook,创建期能力收口到这里:
+/// Windows 经 `skip_taskbar` 隐藏任务栏条目;Linux 经 `application_id` 设 WM_CLASS
+/// (StartupWMClass 匹配 desktop 条目),_NET_WM_WINDOW_TYPE 等仍由 x11rb 事后补齐。
+pub fn window_settings(area: &crate::screen::WorkArea) -> iced::window::Settings {
+    // f64→f32:窗口逻辑尺寸为整数级常数,无精度损失
+    #[allow(clippy::cast_possible_truncation)]
+    let size = iced::Size::new(W_LOGICAL as f32, H_LOGICAL as f32);
+    iced::window::Settings {
+        size,
+        position: iced::window::Position::Specific(logical_landing(area)),
+        resizable: false,
+        decorations: false,
+        transparent: false,
+        level: iced::window::Level::AlwaysOnTop,
+        // 关闭请求经 close_requests 订阅处理(关闭语义=销毁窗口,daemon 不退出)
+        exit_on_close_request: false,
+        platform_specific: platform_specific(),
+        // 创建期窗口图标(winit 写 _NET_WM_ICON);x11rb 多档直写仍是兜底主链
+        icon: settings_icon(),
+        ..iced::window::Settings::default()
+    }
+}
+
+/// 窗口图标仅 Linux 有构建期烘焙的 ICON_BLOB;其余平台用默认(Windows 走 exe 资源)。
+// cfg 分支薄封装;nursery 误报,豁免
+#[allow(clippy::missing_const_for_fn)]
+fn settings_icon() -> Option<iced::window::Icon> {
+    #[cfg(target_os = "linux")]
+    {
+        crate::notify::window_icon::settings_icon()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
+/// 平台专属设置:Windows 经 `skip_taskbar` 隐藏任务栏条目;
+/// Linux 经 `application_id` 设 WM_CLASS(StartupWMClass 匹配 desktop 条目)
+fn platform_specific() -> iced::window::settings::PlatformSpecific {
+    #[cfg(windows)]
+    {
+        iced::window::settings::PlatformSpecific {
+            skip_taskbar: true,
+            ..Default::default()
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        iced::window::settings::PlatformSpecific {
+            application_id: WINDOW_TITLE.to_owned(),
+            ..Default::default()
+        }
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
+    {
+        iced::window::settings::PlatformSpecific::default()
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{get_or_try_init, should_retry_x11_init};
+    use crate::screen::WorkArea;
+
+    use super::{ease_out_cubic, elide_title, landing, should_retry_x11_init};
 
     #[test]
-    fn x11_init_retry_only_runs_for_first_window_at_first_tick() {
-        assert!(should_retry_x11_init(true, 50));
-        assert!(!should_retry_x11_init(false, 50));
-        assert!(!should_retry_x11_init(true, 120));
+    fn x11_init_retry_only_runs_at_first_tick() {
+        assert!(should_retry_x11_init(50));
+        assert!(!should_retry_x11_init(120));
+        assert!(!should_retry_x11_init(500));
     }
 
     #[test]
-    fn get_or_try_init_reuses_existing_value() {
-        let mut slot = None;
-        let mut creates = 0;
+    fn landing_pins_bottom_right_with_margin() {
+        let area = WorkArea {
+            x: 0.0,
+            y: 0.0,
+            w: 1920.0,
+            h: 1040.0,
+            scale: 1.0,
+        };
+        let (x, y) = landing(&area);
+        assert_eq!(x, 1920 - 367 - 14);
+        assert_eq!(y, 1040 - 206 - 14);
+    }
 
-        let (_, first_created) = get_or_try_init(&mut slot, || {
-            creates += 1;
-            Ok::<_, ()>("window")
-        })
-        .unwrap();
-        let (value, second_created) = get_or_try_init(&mut slot, || {
-            creates += 1;
-            Ok::<_, ()>("replacement")
-        })
-        .unwrap();
+    #[test]
+    fn ease_out_cubic_bounds() {
+        assert!((ease_out_cubic(0.0) - 0.0).abs() < f32::EPSILON);
+        assert!((ease_out_cubic(1.0) - 1.0).abs() < f32::EPSILON);
+        assert!(ease_out_cubic(0.5) > 0.5, "ease-out 前半程应过半");
+    }
 
-        assert!(first_created);
-        assert!(!second_created);
-        assert_eq!(creates, 1);
-        assert_eq!(*value, "window");
+    #[test]
+    fn title_elide_truncates_long_and_keeps_short() {
+        assert_eq!(elide_title("短标题"), "短标题");
+        let long = "标题".repeat(60);
+        let elided = elide_title(&long);
+        assert!(elided.ends_with('…'));
+        assert!(elided.chars().count() < long.chars().count());
     }
 }

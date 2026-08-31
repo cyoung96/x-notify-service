@@ -1,12 +1,11 @@
 //! 正文 HTML 子集(加粗/颜色/字号/换行/实体)的解析与排版输出。
 //!
 //! 流水线:`parse`(标签与实体 → 带样式逻辑行)→ `wrap`(估宽折行 + 行首禁则)
-//! → `markup`(逐行输出 `StyledText` 标记)。中间类型对本模块外不可见,
-//! 调用方只依赖三个入口:`parse`、`to_styled_lines`、`to_plain_text`。
+//! → 结构化物理行(`Line`/`Run`,渲染层直接映射富文本 span)。
+//! 中间类型对本模块外不可见,调用方只依赖入口:`parse`、`to_lines`、`to_plain_text`。
 
 mod attr;
 mod entity;
-mod markup;
 mod parse;
 mod wrap;
 
@@ -18,6 +17,19 @@ pub struct Parsed {
     lines: wrap::WrappedLines,
 }
 
+/// 物理行:折行后的正文行,携带本行生效字号(字号按行,不进 span)
+pub struct Line {
+    pub runs: Vec<Run>,
+    pub size: u16,
+}
+
+/// 富文本片段:样式只含加粗与颜色
+pub struct Run {
+    pub text: String,
+    pub color: Option<(u8, u8, u8)>,
+    pub bold: bool,
+}
+
 /// 解析 HTML 子集并完成折行
 pub fn parse(html: &str) -> Parsed {
     Parsed {
@@ -25,14 +37,29 @@ pub fn parse(html: &str) -> Parsed {
     }
 }
 
-/// 逐行转为 `StyledText` markdown 标记:加粗用 `**…**`,颜色用 `<font color>`;
-/// 字号不进标记(StyledText 不支持行内字号),由调用方按行设置元素字号。
-/// 返回 (该行标记, 该行字号)。
-pub fn to_styled_lines(parsed: &Parsed) -> Vec<(String, Option<u16>)> {
-    // 门面边界:内部 FontSize 收口为裸 u16,调用方(popup)无需感知该类型
-    markup::styled_lines(&parsed.lines)
-        .into_iter()
-        .map(|(markup, size)| (markup, size.map(|f| f.0)))
+/// 逐行输出结构化物理行(渲染层按 span 映射)。
+// Vec 装配无法 const 化;nursery 误报,豁免
+#[allow(clippy::missing_const_for_fn)]
+pub fn to_lines(parsed: &Parsed) -> Vec<Line> {
+    parsed
+        .lines
+        .0
+        .iter()
+        .map(|line| Line {
+            runs: line
+                .runs
+                .iter()
+                .map(|r| Run {
+                    text: r.text.clone(),
+                    color: r.style.color.map(|c| (c.0, c.1, c.2)),
+                    bold: r.style.bold,
+                })
+                .collect(),
+            // 门面边界:内部 FontSize 收口为裸 u16,调用方无需感知该类型
+            size: line
+                .size
+                .map_or(BASE_FONT_SIZE, |f| f.0),
+        })
         .collect()
 }
 
@@ -45,4 +72,11 @@ pub fn to_plain_text(html: &str) -> String {
         .map(|l| l.runs.iter().map(|r| r.text.as_str()).collect::<String>())
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// 估宽系数(CJK 记 1 单位、其余 0.55):标题等外置截断与折行共用同一套估计。
+// 薄转发;nursery 误报,豁免
+#[allow(clippy::missing_const_for_fn)]
+pub fn char_units(c: char) -> f64 {
+    wrap::char_units(c)
 }

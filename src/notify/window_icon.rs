@@ -10,6 +10,31 @@ pub(super) fn property_units(blob: &[u8]) -> u32 {
     u32::try_from(blob.len() >> 2).unwrap_or(u32::MAX)
 }
 
+/// 从 ICON_BLOB 首档(128×128)生成 iced 窗口图标(RGBA):winit 创建期
+/// 写 _NET_WM_ICON;x11rb 多档直写仍是兜底主链(UOS 任务栏走 desktop 链)
+pub(super) fn settings_icon() -> Option<iced::window::Icon> {
+    let (w_bytes, rest) = ICON_BLOB.split_at(4);
+    let (h_bytes, all_pixels) = rest.split_at(4);
+    let Ok(w) = <[u8; 4]>::try_from(w_bytes) else {
+        return None;
+    };
+    let Ok(h) = <[u8; 4]>::try_from(h_bytes) else {
+        return None;
+    };
+    let width = u32::from_le_bytes(w);
+    let height = u32::from_le_bytes(h);
+    let count = (width as usize).checked_mul(height as usize)?;
+    let pixels = all_pixels.get(..count.checked_mul(4)?)?;
+    // 小端 u32 ARGB 的字节序是 [B,G,R,A],转 RGBA 需交换首尾字节
+    let mut rgba = Vec::with_capacity(pixels.len());
+    let (chunks, _) = pixels.as_chunks::<4>();
+    for px in chunks {
+        let [blue, green, red, alpha] = *px;
+        rgba.extend_from_slice(&[red, green, blue, alpha]);
+    }
+    iced::window::icon::from_rgba(rgba, width, height).ok()
+}
+
 fn merge_atoms(atoms: &mut Vec<u32>, required: &[u32]) {
     for atom in required {
         if !atoms.contains(atom) {

@@ -21,24 +21,6 @@ mod windows_env;
 
 use clap::Parser as _;
 
-// Slint 生成代码(OUT_DIR/popup.rs)是机器产物:保留 correctness 审查,
-// 其余风格/限制组豁免(直接标在宏调用上的 allow 会被 rustc 忽略,必须包 mod);
-// unsafe_code 放行因跨平台生成物(软件渲染)内含既定 unsafe
-#[allow(
-    unsafe_code,
-    clippy::style,
-    clippy::complexity,
-    clippy::perf,
-    clippy::pedantic,
-    clippy::nursery,
-    clippy::restriction,
-    clippy::cargo
-)]
-mod slint_generated {
-    slint::include_modules!();
-}
-pub use slint_generated::*;
-
 fn main() {
     windows_env::attach_parent_console();
     let cli = config::Cli::parse();
@@ -130,8 +112,14 @@ fn serve(cfg: &config::Config) {
         }
     }
 
-    // until_quit:弹窗 hide 不允许结束事件循环(最后一个窗口关闭默认会退出循环)
-    if let Err(e) = slint::run_event_loop_until_quit() {
-        log::error!("事件循环异常退出: {e}");
+    // daemon:弹窗窗口关闭不会结束事件循环(服务常驻语义)
+    if let Err(e) = notify::app::run_service() {
+        log::error!("GUI 事件循环异常退出: {e}");
+        // 通道已断,后续通知转系统通知兜底
+        notify::POPUP_AVAILABLE.store(false, std::sync::atomic::Ordering::Relaxed);
+        #[allow(clippy::infinite_loop)]
+        loop {
+            std::thread::park();
+        }
     }
 }

@@ -20,13 +20,6 @@ impl FontSize {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct Rgb(pub u8, pub u8, pub u8);
 
-impl Rgb {
-    /// `#rrggbb` 小写十六进制(markup 的 `<font color>` 语法)
-    pub(super) fn hex(self) -> String {
-        format!("#{:02x}{:02x}{:02x}", self.0, self.1, self.2)
-    }
-}
-
 pub(super) fn parse_color_attr(attrs: &str) -> Option<Rgb> {
     let lower = attrs.to_ascii_lowercase();
     let pos = lower.find("color")?;
