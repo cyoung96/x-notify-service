@@ -48,6 +48,7 @@ Section "安装"
     WriteUninstaller "$INSTDIR\uninstall.exe"
     WriteRegStr HKCU "${UNINSTKEY}" "DisplayName" "${APPNAME}"
     WriteRegStr HKCU "${UNINSTKEY}" "DisplayVersion" "${VERSION}"
+    WriteRegStr HKCU "${UNINSTKEY}" "Publisher" "HexInfo"
     WriteRegStr HKCU "${UNINSTKEY}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKCU "${UNINSTKEY}" "UninstallString" "$INSTDIR\uninstall.exe"
     WriteRegDWORD HKCU "${UNINSTKEY}" "NoModify" 1
