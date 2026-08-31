@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # 打包 Windows 交付物(正式):NSIS 安装器 setup.exe(per-user 免 UAC、可选安装目录、LZMA 压缩)
 # 用法: scripts/pack-windows.sh [target]
-#   默认 target: x86_64-pc-windows-gnu(交叉编译,需 mingw-w64;macOS: brew install mingw-w64 nsis)
+#   默认 target: x86_64-pc-windows-msvc(与 CI/release 一致;原生 Windows 编译机执行)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-TARGET="${1:-x86_64-pc-windows-gnu}"
+TARGET="${1:-x86_64-pc-windows-msvc}"
 VERSION="$(grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')"
 STAGE="dist/.stage-windows"
 

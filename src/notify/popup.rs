@@ -71,8 +71,8 @@ pub fn elide_title(title: &str) -> String {
     title.to_owned()
 }
 
-/// 启动时探测弹窗 GUI 是否可用:能连上窗口系统并取到工作区即认为可用
-/// (Slint 时代靠试建窗口探测;iced daemon 启动即占据主线程,探测改为无副作用的工作区查询)
+/// 启动时探测弹窗 GUI 是否可用:能连上窗口系统并取到工作区即认为可用。
+/// 只做无副作用的工作区查询——iced daemon 启动即占据主线程,不能试建窗口
 pub fn gui_probe() -> bool {
     #[cfg(target_os = "linux")]
     {

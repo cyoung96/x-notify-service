@@ -2,8 +2,8 @@
 //!
 //! 跨线程投递经 bridge(HTTP/调度线程 → 订阅流);定时(入场动画/位置复校)
 //! 由短生命周期 std 线程驱动——thread-pool 执行器后端不带 Timer,
-//! 不为此引入 tokio/smol。窗口生命周期与 Slint 版的差异:关闭=销毁窗口,
-//! 下一条通知重开(iced 无窗口隐藏 API);单窗 latest-only 语义不变。
+//! 不为此引入 tokio/smol。窗口生命周期:关闭=销毁窗口,下一条通知重开
+//! (iced 无窗口隐藏 API);单窗 latest-only 语义。
 
 use std::time::{Duration, Instant};
 
@@ -198,7 +198,7 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                     log::warn!("WM 重摆了弹窗(现 {pos:?}),复校回 {expected:?}");
                 }
             }
-            // 无条件复校(幂等 move_to,与 Slint 版每 tick set_position 对齐)
+            // 无条件复校(幂等 move_to,不依赖 WM 是否已摆正)
             if let Some(id) = state.window {
                 window::move_to(id, expected)
             } else {
@@ -321,7 +321,7 @@ fn title_row(state: &State) -> Element<'_, Message> {
     .into()
 }
 
-/// 关闭钮:20×20 圆形 hover 底色,字形垂直水平居中(Slint 版视觉对齐)
+/// 关闭钮:20×20 圆形 hover 底色,字形垂直水平居中
 fn close_button(hover: bool) -> Element<'static, Message> {
     let circle = container(text("×").size(16.0).font(UI_FONT).color(CLOSE_GLYPH))
         .width(20.0)
@@ -368,8 +368,7 @@ fn body_column(state: &State) -> Element<'_, Message> {
                 .font(UI_FONT)
                 .size(f32::from(line.size))
                 .line_height(1.6)
-                // 行由 Rust 侧预折,禁二次换行:估宽偏差只裁切,不产生额外行
-                // (与 Slint StyledText 无 wrap 的行为对齐,保住 5 行上限)
+                // 行由 Rust 侧预折,禁二次换行:估宽偏差只裁切,不产生额外行(保住 5 行上限)
                 .wrapping(iced::widget::text::Wrapping::None)
                 .color(BODY_COLOR),
         );

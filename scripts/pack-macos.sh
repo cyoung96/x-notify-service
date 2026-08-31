@@ -52,6 +52,5 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
 PLIST
 
 echo "==> 测试 bundle: $OUT"
-echo "    注册协议:   $OUT/Contents/MacOS/x-notify-service protocol register"
-echo "    直接运行:   $OUT/Contents/MacOS/x-notify-service install"
+echo "    注册自启+协议: $OUT/Contents/MacOS/x-notify-service install"
 echo "    验证拉起:   open 'x-notify://launch'"
