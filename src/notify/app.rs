@@ -347,6 +347,9 @@ fn body_column(state: &State) -> Element<'_, Message> {
             rich_text(spans)
                 .size(f32::from(line.size))
                 .line_height(1.6)
+                // 行由 Rust 侧预折,禁二次换行:估宽偏差只裁切,不产生额外行
+                // (与 Slint StyledText 无 wrap 的行为对齐,保住 5 行上限)
+                .wrapping(iced::widget::text::Wrapping::None)
                 .color(BODY_COLOR),
         );
     }
