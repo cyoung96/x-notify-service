@@ -1,0 +1,36 @@
+# cargo-deny 门禁:开源协议审计
+# 方针:仅放行宽松(permissive)协议;GPL/AGPL/LGPL/SSPL 等 copyleft(传染)协议
+# 不进白名单即被拒绝。MPL-2.0 为文件级弱传染,单独评估后再决定是否入列。
+# 用法:cargo deny check licenses
+
+[graph]
+# 实际交付目标(Linux 双架构 + Windows + macOS 开发机);其余三平台的无关依赖不扫
+targets = [
+  { triple = "x86_64-unknown-linux-gnu" },
+  { triple = "aarch64-unknown-linux-gnu" },
+  { triple = "x86_64-pc-windows-msvc" },
+  { triple = "aarch64-apple-darwin" },
+]
+
+[licenses]
+allow = [
+  "MIT",
+  "MIT-0",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSD-3-Clause-Clear",
+  "ISC",
+  "0BSD",
+  "Zlib",
+  "BSL-1.0",
+  "CC0-1.0",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+]
+
+# 复审豁免:MPL-2.0 为文件级弱传染(不传染链接产物),仅此一例
+[[licenses.exceptions]]
+crate = "option-ext"
+allow = ["MPL-2.0"]
