@@ -15,10 +15,10 @@ PORT_FILE="$HOME/.local/share/x-notify-service/port"
 if [ -f "$PORT_FILE" ]; then
     pid=$(sed -n 's/.*"pid":\([0-9][0-9]*\).*/\1/p' "$PORT_FILE")
     if [ -n "$pid" ] && tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q "x-notify-service"; then
+        # 服务无信号处理器,TERM 即刻退出;短歇后 KILL 仅兜底僵死,无需长宽限
         kill "$pid" 2>/dev/null || true
-        i=0
-        while [ "$i" -lt 20 ] && kill -0 "$pid" 2>/dev/null; do sleep 0.1; i=$((i+1)); done
-        kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
+        sleep 0.2
+        kill -9 "$pid" 2>/dev/null || true
         echo "已停止旧实例(pid $pid)"
     fi
 fi
