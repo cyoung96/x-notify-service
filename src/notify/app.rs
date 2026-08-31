@@ -7,7 +7,7 @@
 
 use std::time::{Duration, Instant};
 
-use iced::font::Weight;
+use iced::font::{Family, Weight};
 use iced::widget::text::Span;
 use iced::widget::{container, mouse_area, rich_text, row, span, text, Column};
 use iced::widget::container::Style as ContainerStyle;
@@ -24,7 +24,23 @@ const CLOSE_GLYPH: Color = Color::from_rgb8(0x9a, 0xa2, 0xad);
 const CLOSE_HOVER_BG: Color = Color::from_rgb8(0xee, 0xf0, 0xf3);
 const CARD_BORDER: Color = Color::from_rgb8(0xe4, 0xe6, 0xeb);
 
+/// 平台标准 UI 字体族:钉死族名让 CJK 与拉丁同族——iced 默认 SansSerif
+/// 解析为 "Open Sans"(各平台普遍缺失),按脚本回退后拉丁落到 Helvetica 系,
+/// 与中文 PingFang/Noto/YaHei 度量不合,行内基线与字面大小观感不一致
+#[cfg(target_os = "macos")]
+const UI_FONT_FAMILY: &str = "PingFang SC";
+#[cfg(windows)]
+const UI_FONT_FAMILY: &str = "Microsoft YaHei UI";
+#[cfg(all(unix, not(target_os = "macos")))]
+const UI_FONT_FAMILY: &str = "Noto Sans CJK SC";
+
+const UI_FONT: Font = Font {
+    family: Family::Name(UI_FONT_FAMILY),
+    ..Font::DEFAULT
+};
+
 const BOLD: Font = Font {
+    family: Family::Name(UI_FONT_FAMILY),
     weight: Weight::Bold,
     ..Font::DEFAULT
 };
@@ -111,6 +127,7 @@ fn build_daemon(boot: impl Fn() -> (State, Task<Message>) + 'static) -> iced::Re
         .title(popup::WINDOW_TITLE)
         .subscription(subscription)
         .theme(Theme::Light)
+        .default_font(UI_FONT)
         .style(|_state, _theme| iced::theme::Style {
             background_color: Color::WHITE,
             text_color: TITLE_COLOR,
@@ -304,11 +321,14 @@ fn title_row(state: &State) -> Element<'_, Message> {
     .into()
 }
 
-/// 关闭钮:20×20 圆形 hover 底色,居中于 26px 槽位
+/// 关闭钮:20×20 圆形 hover 底色,字形垂直水平居中(Slint 版视觉对齐)
 fn close_button(hover: bool) -> Element<'static, Message> {
-    let circle = container(text("×").size(16.0).color(CLOSE_GLYPH))
+    let circle = container(text("×").size(16.0).font(UI_FONT).color(CLOSE_GLYPH))
         .width(20.0)
         .height(20.0)
+        // iced Container 默认 Left/Top 对齐,必须显式居中
+        .align_x(iced::alignment::Horizontal::Center)
+        .align_y(iced::alignment::Vertical::Center)
         .style(move |_theme| ContainerStyle {
             background: hover.then_some(CLOSE_HOVER_BG.into()),
             border: iced::Border {
@@ -345,6 +365,7 @@ fn body_column(state: &State) -> Element<'_, Message> {
             .collect();
         lines = lines.push(
             rich_text(spans)
+                .font(UI_FONT)
                 .size(f32::from(line.size))
                 .line_height(1.6)
                 // 行由 Rust 侧预折,禁二次换行:估宽偏差只裁切,不产生额外行
