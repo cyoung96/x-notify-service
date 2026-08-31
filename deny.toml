@@ -14,6 +14,8 @@ targets = [
 
 [licenses]
 allow = [
+  # 本 crate 私有发布(有意不声明开源协议,经下方 clarify 标记)
+  "LicenseRef-Private",
   "MIT",
   "MIT-0",
   "Apache-2.0",
@@ -29,6 +31,12 @@ allow = [
   "Unicode-3.0",
   "Unicode-DFS-2016",
 ]
+
+# 本 crate 有意不声明开源协议(私有发布);仅在审计配置里标记,包元数据不留痕
+[[licenses.clarify]]
+crate = "x-notify-service"
+expression = "LicenseRef-Private"
+license-files = []
 
 # 复审豁免:MPL-2.0 为文件级弱传染(不传染链接产物),仅此一例
 [[licenses.exceptions]]
